@@ -1,0 +1,41 @@
+# Build context excludes.
+#
+# The critical entries are the `.env` ones. `pnpm deploy` copies a package's
+# directory into the image, and that directory holds a developer's real `.env`
+# with Firebase keys and (in dev) `DEV_AUTH_BYPASS=true`. Baking that into a
+# production image both leaks the credentials and can silently disable auth.
+
+# secrets - never let these reach an image
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.p12
+*service-account*.json
+.firebase/
+firebase-debug.log
+
+# dependencies and build output - all rebuilt inside the image
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+*.tsbuildinfo
+
+# dev state that must not be baked in: the local-file stores, the demo cache and
+# the assets the worker wrote during a local run.
+.data/
+**/.data/
+*.log
+
+# tests, docs and editor state - none of it belongs in a runtime image
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/coverage/
+.git/
+.github/
+.vscode/
+.idea/
+.DS_Store

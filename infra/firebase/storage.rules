@@ -1,0 +1,55 @@
+rules_version = '2';
+
+// CreatorDNA Studio - Cloud Storage security rules.
+//
+// Layout (mirrors Firestore): every object a creator owns sits under
+// `users/{uid}/...`. The worker writes through the Admin SDK, which bypasses
+// these rules, so the client only ever needs read (and delete) on its own path.
+//
+// Deploy with:  firebase deploy --only storage
+// Test with:    firebase emulators:start --only storage
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // 100 MB ceiling: a 45s 9:16 MP4 is a few MB, this only blocks abuse.
+    function isReasonableSize() {
+      return request.resource.size < 100 * 1024 * 1024;
+    }
+
+    // ---- the creator's own files -----------------------------------------
+    match /users/{uid}/{allPaths=**} {
+      allow read: if isOwner(uid);
+
+      // Clients may upload only their own source material (voice samples,
+      // reference clips). Everything under renders/ is worker-written.
+      allow create, update: if isOwner(uid)
+        && isReasonableSize()
+        && allPaths[0] == 'sources'
+        && (request.resource.contentType == null
+            || request.resource.contentType.matches('(audio|video|image)/.*'));
+
+      allow delete: if isOwner(uid) && allPaths[0] != 'renders';
+    }
+
+    // ---- shared, read-only assets ----------------------------------------
+    // Prompt examples, sample music beds and UI stock.
+    match /public/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---- everything else: closed -----------------------------------------
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

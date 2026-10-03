@@ -1,0 +1,270 @@
+name: CD
+
+# Deploys on a tag, or on demand against a chosen environment.
+#
+# A tag is the production trigger because it is the only thing that cannot be
+# moved after the fact: `v1.2.3` is immutable, a branch head is not, and a
+# production deploy should be reproducible from the commit it came from.
+#
+# Staging deploys from `main` on demand as well, so a staging environment tracks
+# the branch without a release.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which environment to deploy
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+      ref:
+        description: Git ref to deploy
+        required: false
+        default: main
+
+concurrency:
+  # One deploy per environment at a time. A second push during a deploy would
+  # otherwise race two revisions into the same traffic split.
+  group: cd-${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production' || 'staging') }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # Workload Identity Federation: no service-account key file.
+
+env:
+  REGISTRY: us-central1-docker.pkg.dev
+
+jobs:
+  # Which environment, and which image tag, decided once here.
+  plan:
+    name: Resolve the deployment target
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      project: ${{ steps.resolve.outputs.project }}
+    steps:
+      - id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            ENVIRONMENT=production
+          else
+            ENVIRONMENT=staging
+          fi
+
+          case "$ENVIRONMENT" in
+            production)
+              TAG="${GITHUB_REF#refs/tags/}"
+              PROJECT="${{ secrets.GCP_PROJECT_PRODUCTION }}"
+              ;;
+            staging)
+              # A short SHA, so a staging image is traceable to its commit and
+              # two deploys of the same commit are the same image.
+              TAG="sha-${GITHUB_SHA::7}"
+              PROJECT="${{ secrets.GCP_PROJECT_STAGING }}"
+              ;;
+          esac
+
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and push images
+    runs-on: ubuntu-latest
+    needs: plan
+    strategy:
+      matrix:
+        include:
+          - name: api
+            dockerfile: apps/api/Dockerfile
+          - name: worker
+            dockerfile: apps/worker/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          # Workload Identity Federation. No JSON key is ever written to disk,
+          # which is the whole point: a service-account key in a repo secret is
+          # a credential that outlives the rotation schedule.
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+          project_id: ${{ needs.plan.outputs.project }}
+
+      - name: Configure docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      - name: Build
+        run: |
+          docker build \
+            -f ${{ matrix.dockerfile }} \
+            -t ${{ env.REGISTRY }}/${{ needs.plan.outputs.project }}/creatordna/${{ matrix.name }}:${{ needs.plan.outputs.tag }} \
+            .
+
+      - name: Push
+        run: |
+          docker push \
+            ${{ env.REGISTRY }}/${{ needs.plan.outputs.project }}/creatordna/${{ matrix.name }}:${{ needs.plan.outputs.tag }}
+
+  deploy-api:
+    name: Deploy the API
+    runs-on: ubuntu-latest
+    needs: [plan, build]
+    environment: ${{ needs.plan.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+          project_id: ${{ needs.plan.outputs.project }}
+
+      - name: Render the service spec for this environment
+        run: |
+          # The YAML carries placeholders for the project and region so one file
+          # serves both environments. Substituting here keeps the credentials out
+          # of the repository and out of the spec.
+          sed -e "s|PROJECT_ID|${{ needs.plan.outputs.project }}|g" \
+              -e "s|REGION|${{ env.REGION }}|g" \
+              -e "s|creatordna/api:${{ needs.plan.outputs.environment == 'production' && 'latest' || 'staging' }}|creatordna/api:${{ needs.plan.outputs.tag }}|g" \
+              infra/cloudrun/api.${{ needs.plan.outputs.environment }}.yaml \
+            > /tmp/api.yaml
+
+      - name: Deploy
+        run: |
+          gcloud run services replace /tmp/api.yaml \
+            --region "${{ env.REGION }}" \
+            --project "${{ needs.plan.outputs.project }}"
+
+      - name: Wait for the revision to serve
+        # A deploy that returns before the new revision is ready is a deploy
+        # that reports success on a service still running the old code.
+        run: |
+          gcloud run services describe creatordna-api${{ needs.plan.outputs.environment == 'production' && '' || '-staging' }} \
+            --region "${{ env.REGION }}" \
+            --project "${{ needs.plan.outputs.project }}" \
+            --format 'value(status.latestCreatedRevisionName)'
+
+      - name: Smoke the deployed API
+        run: |
+          URL=$(gcloud run services describe creatordna-api${{ needs.plan.outputs.environment == 'production' && '' || '-staging' }} \
+            --region "${{ env.REGION }}" \
+            --project "${{ needs.plan.outputs.project }}" \
+            --format 'value(status.url)')
+          echo "health: $(curl -s -o /dev/null -w '%{http_code}' "$URL/health")"
+          curl -fsS "$URL/health" | head -c 400
+
+  deploy-worker:
+    name: Deploy the worker
+    runs-on: ubuntu-latest
+    needs: [plan, build]
+    environment: ${{ needs.plan.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+          project_id: ${{ needs.plan.outputs.project }}
+
+      - name: Render and deploy
+        run: |
+          sed -e "s|PROJECT_ID|${{ needs.plan.outputs.project }}|g" \
+              -e "s|REGION|${{ env.REGION }}|g" \
+              -e "s|creatordna/worker:${{ needs.plan.outputs.environment == 'production' && 'latest' || 'staging' }}|creatordna/worker:${{ needs.plan.outputs.tag }}|g" \
+              infra/cloudrun/worker.${{ needs.plan.outputs.environment }}.yaml \
+            > /tmp/worker.yaml
+          gcloud run services replace /tmp/worker.yaml \
+            --region "${{ env.REGION }}" \
+            --project "${{ needs.plan.outputs.project }}"
+
+      - name: Confirm the revision is serving
+        run: |
+          gcloud run services describe creatordna-worker${{ needs.plan.outputs.environment == 'production' && '' || '-staging' }} \
+            --region "${{ env.REGION }}" \
+            --project "${{ needs.plan.outputs.project }}" \
+            --format 'value(status.latestCreatedRevisionName, status.latestReadyRevisionName)'
+
+  deploy-web:
+    name: Deploy the web app
+    runs-on: ubuntu-latest
+    needs: [plan, deploy-api]
+    environment: ${{ needs.plan.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        env:
+          # Empty is correct and deliberate: the app talks to `/api/...` on its
+          # own origin, and Firebase Hosting rewrites that to Cloud Run. Setting
+          # this would put a second origin in the browser's CORS set for no
+          # reason. See `infra/firebase/firebase.json`.
+          VITE_API_URL: ''
+        run: pnpm --filter @creatordna/web build
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAGING }}
+          projectId: ${{ needs.plan.outputs.project }}
+          entryPoint: infra/firebase
+          channelId: ${{ needs.plan.outputs.environment == 'production' && 'live' || 'staging' }}
+
+  verify:
+    name: Post-deploy verification
+    runs-on: ubuntu-latest
+    needs: [plan, deploy-api, deploy-worker, deploy-web]
+    environment: ${{ needs.plan.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+          project_id: ${{ needs.plan.outputs.project }}
+
+      - name: Check the API health endpoint through Hosting
+        # Through Hosting, not the Cloud Run URL directly: the rewrite is the
+        # thing most likely to be wrong, and it is invisible if you only probe
+        # the service.
+        run: |
+          SITE=$(firebase hosting:sites:list --project "${{ needs.plan.outputs.project }}" \
+            --format 'value(siteId)' | head -1)
+          echo "site: $SITE"
+          curl -fsS "https://$SITE/health" | head -c 400
+
+      - name: Check the worker is consuming
+        run: |
+          gcloud run services describe creatordna-worker${{ needs.plan.outputs.environment == 'production' && '' || '-staging' }} \
+            --region "${{ env.REGION }}" \
+            --project "${{ needs.plan.outputs.project }}" \
+            --format 'value(status.conditions[0].status)'

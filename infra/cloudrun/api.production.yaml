@@ -1,0 +1,110 @@
+# Cloud Run service definition for the CreatorDNA API (production).
+#
+# This is a `gcloud run services replace`-compatible service spec. Apply it with:
+#   gcloud run services replace infra/cloudrun/api.production.yaml \
+#     --region "$REGION" --project "$PROJECT_ID"
+#
+# Same two non-default settings as staging, and for the same reasons - see
+# `api.staging.yaml` for the WebSocket notes.
+#
+# Two settings here are not defaults and both exist for the WebSocket:
+#
+#   sessionAffinity: true
+#     Keeps one browser's requests on one instance. It is *not* required for
+#     correctness - the API already fans render progress out over Redis pub/sub,
+#     so every replica receives the event and re-broadcasts to the sockets it
+#     holds - but it removes a reconnect round trip whenever an instance is
+#     replaced mid-render, and it keeps a long coaching session stable.
+#
+#   timeout: 3600s
+#     Cloud Run's ceiling. A WebSocket is held open for the whole request, so a
+#     render that takes twenty minutes needs a timeout above twenty minutes or
+#     the platform drops the socket and the UI falls back to polling.
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: creatordna-api
+  labels:
+    app: creatordna
+    component: api
+    environment: production
+spec:
+  template:
+    metadata:
+      annotations:
+        # One instance minimum: a cold start on the first render of a demo is a
+        # visible stall, and the API holds the WebSocket that watches it.
+        autoscaling.knative.dev/minScale: '2'
+        # The API is I/O bound. CPU scales with concurrent sockets, not with
+        # requests, so this is generous but capped - the cost guard is the
+        # per-user daily quota in the app, not the platform.
+        autoscaling.knative.dev/maxScale: '30'
+        # Sessions are sticky while an instance lives, so drain long enough for
+        # an in-flight render's socket to finish rather than be cut.
+        autoscaling.knative.dev/maxSurge: '1'
+        run.googleapis.com/sessionAffinity: 'true'
+        # CPU is allocated for the whole instance lifetime, not per request.
+        # Without this a WebSocket-heavy instance is throttled to the request
+        # default and drops frames on the progress channel.
+        run.googleapis.com/cpu-throttling: 'false'
+    spec:
+      # Long enough for a 45s render's progress socket plus headroom. Cloud Run
+      # caps this at 60 minutes.
+      timeoutSeconds: 3600
+      serviceAccountName: creatordna-api@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - name: api
+          image: REGION-docker.pkg.dev/PROJECT_ID/creatordna/api:latest
+          ports:
+            - containerPort: 4000
+          resources:
+            limits:
+              # 1 vCPU / 512MiB is enough for the API: it does no rendering.
+              cpu: '2'
+              memory: 1Gi
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: HOST
+              value: 0.0.0.0
+            # Cloud Run injects PORT=8080 by default; the app reads either.
+            - name: PORT
+              value: '4000'
+            - name: LOG_LEVEL
+              value: info
+            # Production logs must stay JSON for Cloud Logging to parse fields.
+            - name: LOG_PRETTY
+              value: 'false'
+            # Production sweeps on the product's cadence: six hours. The
+            # watermark means a creator who changed nothing costs nothing, so
+            # there is no reason to poll more often.
+            - name: DNA_LEARN_INTERVAL_MS
+              value: '21600000'
+            - name: DNA_LEARN_ENABLED
+              value: 'true'
+            - name: DEMO_MODE
+              value: 'false'
+          envFrom:
+            # Everything secret lives in Secret Manager and is referenced here,
+            # so nothing in this file is a credential.
+            - secretRef:
+                name: creatordna-api
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            periodSeconds: 30
+            failureThreshold: 3
+  traffic:
+    # Staging always serves the latest revision; there is no traffic split to
+    # manage on a environment nobody is paying for.
+    - percent: 100
+      latestRevision: true

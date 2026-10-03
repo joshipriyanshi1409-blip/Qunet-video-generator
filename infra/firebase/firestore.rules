@@ -1,0 +1,166 @@
+rules_version = '2';
+
+// CreatorDNA Studio - Firestore security rules.
+//
+// Model: everything a creator owns lives under `users/{uid}`. The client SDK is
+// never trusted to write another user's data, and the API uses the Admin SDK
+// (which bypasses these rules) for anything privileged.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+// Test with:    firebase emulators:start --only firestore
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- helpers ----------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Only the fields listed here may change, and only to these types. Keeps a
+    // compromised client from writing arbitrary document shapes.
+    function onlyChanged(allowed) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
+    }
+
+    function createdFields(allowed) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed)
+        && allowed.hasOnly(request.resource.data.keys());
+    }
+
+    // ---- the creator's own tree ------------------------------------------
+    match /users/{uid} {
+      // A user may read and update their own profile document, but not delete
+      // it (account deletion is an Admin SDK operation).
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['email', 'displayName', 'createdAt', 'plan']);
+      allow update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['email', 'displayName', 'plan']);
+      allow delete: if false;
+
+      // ---- Creator DNA profile -------------------------------------------
+      // One document per source ("primary", "import:x", ...) holding the
+      // learned voice, pillars, audience and preferences.
+      match /dna/{docId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isOwner(uid);
+      }
+
+      // ---- learning loop (phase 9) ---------------------------------------
+      // Signals are append-only evidence: a creator may record what they did and
+      // read it back, but never rewrite history - that is what makes the audit
+      // trail worth anything. Deletion is left to the Admin SDK (account delete).
+      match /signals/{signalId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && createdFields(['id', 'kind', 'createdAt', 'label', 'source']);
+        allow update, delete: if false;
+      }
+
+      // Proposals. A client may change *status* only - and only from pending to
+      // accepted or rejected. It may never mint a proposal, edit a rationale, or
+      // resurrect a resolved one, because the model's reasoning is the record.
+      match /suggestions/{suggestionId} {
+        allow read: if isOwner(uid);
+        allow create: if false; // API only (Admin SDK)
+        allow update: if isOwner(uid)
+          && onlyChanged(['status', 'resolvedAt'])
+          && request.resource.data.status in ['accepted', 'rejected']
+          && resource.data.status == 'pending';
+        allow delete: if false;
+      }
+
+      // Version snapshots. Written by the API on accept; read-only to clients.
+      match /versions/{versionId} {
+        allow read: if isOwner(uid);
+        allow write: if false; // Admin SDK only
+      }
+
+      // The learning loop's watermark. Not creator-visible, and not theirs to set.
+      match /learning/{docId} {
+        allow read: if isOwner(uid);
+        allow write: if false; // Admin SDK only
+      }
+
+      // ---- render jobs ----------------------------------------------------      // Status documents the client polls/streams. Clients may only advance a
+      // job to "cancelled"; every other transition is made by the worker.
+      match /jobs/{jobId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.status == 'queued';
+        allow update: if isOwner(uid) && onlyChanged(['status', 'cancelRequestedAt'])
+          && request.resource.data.status == 'cancelled';
+        allow delete: if false;
+      }
+
+      // ---- generated assets (metadata; bytes live in Storage) -------------
+    match /assets/{assetId} {
+        allow read: if isOwner(uid);
+        allow write: if false; // worker only (Admin SDK)
+      }
+
+      // ---- trends, ideas and drafts --------------------------------------
+      match /ideas/{ideaId} {
+        allow read, write: if isOwner(uid) && request.resource.data.uid == uid;
+      }
+
+      match /trends/{trendId} {
+        allow read: if isOwner(uid);
+        allow write: if false; // refreshed by the worker (Admin SDK)
+      }
+
+      // ---- anything else: closed -----------------------------------------
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+
+    // ---- global collections ----------------------------------------------
+    // Trend caches and the prompt registry are world-readable, admin-written.
+    match /trends/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /prompts/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---- projects ---------------------------------------------------------
+    // One project is one creator's idea carried through remix -> mirror ->
+    // improve -> approval. Its `versions` array is the whole revise loop, so the
+    // creator must be able to append to it - but only their own.
+    // ---- render jobs ------------------------------------------------------
+    // Top-level because the worker writes them by job id, not by owner path, and
+    // the browser reads one by id. Ownership is checked against the document's
+    // own `uid` rather than the path. Writes come only from the worker (Admin
+    // SDK, which bypasses these rules); a client must never be able to claim a
+    // render finished.
+    match /renderJobs/{jobId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.uid;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.uid;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /projects/{projectId} {
+      allow read, update: if isSignedIn() && request.auth.uid == resource.data.uid;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.uid;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

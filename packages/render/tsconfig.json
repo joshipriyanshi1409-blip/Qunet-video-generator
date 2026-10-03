@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "noEmit": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@creatordna/shared/logger": ["../../packages/shared/src/logger.ts"],
+      "@creatordna/shared": ["../../packages/shared/src/index.ts"],
+      "@creatordna/prompts": ["../../packages/prompts/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

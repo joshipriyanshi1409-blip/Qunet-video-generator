@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "types": ["vite/client", "vitest/globals", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@creatordna/shared": ["../../packages/shared/src/index.ts"],
+      "@creatordna/shared/logger": ["../../packages/shared/src/logger.ts"],
+      "@creatordna/prompts": ["../../packages/prompts/src/index.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

@@ -1,0 +1,41 @@
+# Local infrastructure for CreatorDNA Studio.
+#
+#   docker compose -f infra/docker-compose.yml up -d
+#
+# Redis is the only external dependency right now: BullMQ queues for the API and
+# the worker. Everything else (Firestore, Storage, the AI models) is remote.
+#
+# Ports are published on 127.0.0.1 only so a shared dev machine is not exposed.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: creatordna-redis
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional: a web UI for inspecting BullMQ queues and jobs.
+  # Start with:  docker compose -f infra/docker-compose.yml --profile tools up -d
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: creatordna-redis-commander
+    profiles: ["tools"]
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis-data:

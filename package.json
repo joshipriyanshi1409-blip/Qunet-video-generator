@@ -1,0 +1,35 @@
+{
+  "name": "creatordna",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CreatorDNA Studio - AI studio that learns a creator's DNA and turns ideas into finished 9:16 short videos.",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=20.11.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:web": "pnpm --filter @creatordna/web dev",
+    "dev:api": "pnpm --filter @creatordna/api dev",
+    "dev:worker": "pnpm --filter @creatordna/worker dev",
+    "build": "pnpm -r --topological --if-present build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "test:watch": "pnpm -r --if-present test:watch",
+    "clean": "pnpm -r --if-present clean"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.18.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.14.0",
+    "typescript": "~5.9.2",
+    "typescript-eslint": "^8.19.1"
+  },
+  "type": "module"
+}

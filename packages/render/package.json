@@ -1,0 +1,38 @@
+{
+  "name": "@creatordna/render",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CreatorDNA render pipeline: job document store, asset storage, stage runners, composers and QC.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@creatordna/shared": "workspace:*",
+    "firebase-admin": "^13.4.0",
+    "ioredis": "^5.4.2",
+    "pino": "^9.6.0",
+    "zod": "^3.25.76",
+    "@creatordna/prompts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

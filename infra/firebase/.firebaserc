@@ -1,0 +1,20 @@
+{
+  "projects": {
+    "default": "creatordna-staging",
+    "staging": "creatordna-staging",
+    "production": "creatordna-production"
+  },
+  "targets": {
+    "creatordna-staging": {
+      "hosting": {
+        "web": ["creatordna-staging"]
+      }
+    },
+    "creatordna-production": {
+      "hosting": {
+        "web": ["creatordna-production"]
+      }
+    }
+  },
+  "etags": {}
+}

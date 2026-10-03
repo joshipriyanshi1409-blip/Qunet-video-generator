@@ -1,0 +1,123 @@
+@import 'tailwindcss';
+
+/*
+ * CreatorDNA design tokens.
+ *
+ * Tailwind v4 reads these CSS variables to generate utilities:
+ *   --color-peach-500  -> bg-peach-500 / text-peach-500 / border-peach-500
+ *   --radius-card      -> rounded-card
+ *   --shadow-card      -> shadow-card
+ *   --font-sans        -> font-sans
+ *   --text-body        -> text-body
+ *
+ * Keep in sync with src/theme/tokens.ts (enforced by src/__tests__/theme.test.ts).
+ */
+@theme {
+  /* surfaces */
+  --color-canvas: #fff9f5;
+  --color-surface: #ffffff;
+  --color-surface-muted: #fff3ec;
+  --color-line: #f6e3d8;
+
+  /* peach */
+  --color-peach-50: #fff7f2;
+  --color-peach-100: #ffede3;
+  --color-peach-200: #ffd9c7;
+  --color-peach-300: #ffbfa3;
+  --color-peach-400: #ff9e78;
+  --color-peach-500: #ff7f55;
+  --color-peach-600: #f2643a;
+  --color-peach-700: #cb4a25;
+  --color-peach-800: #9c3a20;
+  --color-peach-900: #7a311f;
+
+  /* coral */
+  --color-coral-100: #ffe7e4;
+  --color-coral-300: #ffb3a8;
+  --color-coral-500: #ff7a66;
+  --color-coral-700: #d94838;
+
+  /* ink (text) */
+  --color-ink-900: #2a1b16;
+  --color-ink-700: #5b463f;
+  --color-ink-500: #8a736b;
+  --color-ink-300: #c4b3ab;
+  --color-ink-100: #efe4de;
+
+  /* semantic */
+  --color-success-soft: #e7f6ec;
+  --color-success: #2e9e63;
+  --color-success-strong: #1f7a4b;
+  --color-warning-soft: #fff3da;
+  --color-warning: #d9911f;
+  --color-warning-strong: #a96c0d;
+  --color-danger-soft: #ffe9e6;
+  --color-danger: #de5b4b;
+  --color-danger-strong: #b23a2c;
+  --color-info-soft: #e9f1ff;
+  --color-info: #3b7dd8;
+  --color-info-strong: #2a5ca8;
+
+  /* shape + depth */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-card: 1.5rem;
+  --radius-pill: 9999px;
+
+  --shadow-card: 0 1px 2px rgba(42, 27, 22, 0.04), 0 10px 30px rgba(42, 27, 22, 0.06);
+  --shadow-card-hover: 0 2px 4px rgba(42, 27, 22, 0.05), 0 16px 40px rgba(42, 27, 22, 0.1);
+  --shadow-popover: 0 12px 48px rgba(42, 27, 22, 0.16);
+  --shadow-focus: 0 0 0 4px rgba(255, 127, 85, 0.22);
+
+  /* typography */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --text-tiny: 0.75rem;
+  --text-tiny--line-height: 1rem;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.125rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5rem;
+  --text-body-lg: 1.0625rem;
+  --text-body-lg--line-height: 1.75rem;
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.75rem;
+  --text-display: 1.875rem;
+  --text-display--line-height: 2.25rem;
+}
+
+/* Base layer: light, soft, high-contrast text on a warm canvas. */
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background-color: var(--color-canvas);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible keyboard focus everywhere (accessibility rule 10). */
+  :focus-visible {
+    outline: 2px solid var(--color-peach-600);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

@@ -1,0 +1,86 @@
+# Cloud Run service definition for the CreatorDNA worker (staging).
+#
+# The worker is a queue consumer, not a server. It has no port and no health
+# endpoint, and it must NOT be autoscaled on request volume - it has none. It
+# scales on the depth of the `render` queue, which is why the autoscaling
+# annotations below are the whole point of this file.
+#
+# Apply with:
+#   gcloud run services replace infra/cloudrun/worker.staging.yaml \\
+#     --region "$STAGING_REGION" --project "$STAGING_PROJECT"
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: creatordna-worker-staging
+  labels:
+    app: creatordna
+    component: worker
+    environment: staging
+spec:
+  template:
+    metadata:
+      annotations:
+        # A worker that scales to zero loses nothing when idle (BullMQ keeps the
+        # jobs in Redis) but adds a cold start to the first render after a quiet
+        # spell. Staging keeps one warm so a demo does not wait for a boot.
+        autoscaling.knative.dev/minScale: '1'
+        # Capped well below the API's ceiling on purpose: every instance runs
+        # `WORKER_CONCURRENCY` renders in parallel, each holding an ffmpeg
+        # process and several hundred MB of frames in /tmp.
+        autoscaling.knative.dev/maxScale: '4'
+        # One worker always running means the queue is never unattended, so a
+        # surge of one is enough to absorb a burst.
+        autoscaling.knative.dev/maxSurge: '1'
+    spec:
+      # A 45s render with Veo polls can take several minutes; the BullMQ lock is
+      # 300s, so the timeout must comfortably exceed it or the platform kills a
+      # job whose lock has already expired - which another worker then restarts
+      # from the beginning.
+      timeoutSeconds: 1800
+      serviceAccountName: creatordna-worker-staging@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - name: worker
+          image: REGION-docker.pkg.dev/PROJECT_ID/creatordna/worker:staging
+          resources:
+            limits:
+              # Media work is CPU-bound and bursty: encoding, and ffmpeg's
+              # threads. 2 vCPU is the floor for a render that finishes inside
+              # the lock duration.
+              cpu: '2'
+              memory: 4Gi
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: LOG_LEVEL
+              value: info
+            - name: LOG_PRETTY
+              value: 'false'
+            - name: RENDER_COMPOSER
+              value: ffmpeg
+            # ffmpeg is on PATH from the Debian package in this image, so no
+            # FFMPEG_PATH is needed.
+            - name: WORKER_CONCURRENCY
+              value: '2'
+            # Local disk is scratch only. Production has Firebase Storage
+            # configured, so this directory holds working files, not assets.
+            - name: WORKER_DATA_DIR
+              value: /data
+            - name: DEMO_MODE
+              value: 'false'
+          envFrom:
+            - secretRef:
+                name: creatordna-worker-staging
+          volumeMounts:
+            # A Cloud Storage bucket mounted as a volume, so per-job scratch
+            # files survive a redeploy and a retry can re-read an earlier
+            # stage's frames without re-rendering them.
+            - name: work
+              mountPath: /data
+      volumes:
+        - name: work
+          csi:
+            driver: gcsfuse.run.googleapis.com
+            volumeAttributes:
+              bucketName: creatordna-worker-scratch-staging
+              mountOptions: 'uid=1000,gid=1000,file-mode=664,dir-mode=775'

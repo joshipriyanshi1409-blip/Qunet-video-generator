@@ -1,0 +1,30 @@
+{
+  "indexes": [
+    {
+      "//": "Phase 9: the learning loop's discovery step. `collectionGroup('signals')` ordered by createdAt crosses every creator's subcollection, which needs a collection-group-scoped composite index.",
+      "collectionGroup": "signals",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "Phase 9: pending proposals per creator, newest first. A single-field index is automatic; this one is declared so the ordering is explicit and survives a rules change.",
+      "collectionGroup": "suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "Phase 9: version history per creator, newest version first.",
+      "collectionGroup": "versions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "version", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
