@@ -7,6 +7,10 @@ import type { AudienceService } from '../services/audience.service.js';
 import type { VoiceCoachService } from '../voiceCoach/service.js';
 import type { RenderJobService } from '../services/renderJob.service.js';
 import type { DnaLearningService } from '../services/dnaLearning.service.js';
+import type { Orchestrator } from '../services/orchestrator.js';
+import type { ScriptCriticService } from '../services/scriptCritic.service.js';
+import type { DnaRepository } from '../lib/dnaRepository.js';
+import type { Logger } from 'pino';
 import { createDnaRouter } from './dna.routes.js';
 import { createJobsRouter } from './jobs.routes.js';
 import { createMeRouter } from './me.routes.js';
@@ -15,6 +19,7 @@ import { createAudienceRouter } from './audience.routes.js';
 import { createVoiceCoachRouter } from './voiceCoach.routes.js';
 import { createRenderRouter } from './render.routes.js';
 import { createDnaLearningRouter } from './dnaLearning.routes.js';
+import { createProjectRouter } from './project.routes.js';
 
 /**
  * Everything under the API prefix. Versioning lives in the prefix itself
@@ -36,6 +41,14 @@ export interface ApiRouterOptions {
   voiceCoachService?: VoiceCoachService;
   /** The learning loop. Omit to run without it (tests, minimal deployments). */
   dnaLearningService?: DnaLearningService;
+  /** AI orchestrator for the full video creation pipeline. */
+  orchestrator?: Orchestrator;
+  /** Script critic for evaluating generated scripts. */
+  scriptCritic?: ScriptCriticService;
+  /** DNA repository for the project router. */
+  dnaRepository?: DnaRepository;
+  /** Logger for the project router. */
+  logger?: Logger;
   /** Per-window limit for the model-backed trend endpoints. */
   aiRateLimit?: number;
   aiRateLimitWindowMs?: number;
@@ -86,6 +99,19 @@ export function createApiRouter(options: ApiRouterOptions): Router {
         renderJobs: options.renderJobService,
         aiLimit: options.aiRateLimit ?? 20,
         aiWindowMs: options.aiRateLimitWindowMs ?? 60_000,
+      }),
+    );
+  }
+  // Project routes: orchestrator + script critic + DNA repository
+  if (options.orchestrator !== undefined && options.scriptCritic !== undefined && options.dnaRepository !== undefined && options.logger !== undefined) {
+    router.use(
+      '/projects',
+      createProjectRouter({
+        auth,
+        orchestrator: options.orchestrator,
+        scriptCritic: options.scriptCritic,
+        dnaRepository: options.dnaRepository,
+        logger: options.logger,
       }),
     );
   }

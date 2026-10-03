@@ -29,6 +29,8 @@ import type { TrendService } from './services/trend.service.js';
 import type { AudienceService } from './services/audience.service.js';
 import type { VoiceCoachService } from './voiceCoach/service.js';
 import type { RenderJobService } from './services/renderJob.service.js';
+import type { Orchestrator } from './services/orchestrator.js';
+import type { ScriptCriticService } from './services/scriptCritic.service.js';
 
 export interface CreateAppOptions {
   config: AppConfig;
@@ -58,6 +60,10 @@ export interface CreateAppOptions {
   voiceCoachService?: VoiceCoachService;
   /** Render jobs. Omit to run without the render queue (Redis off). */
   renderJobService?: RenderJobService;
+  /** AI orchestrator for the full video creation pipeline. */
+  orchestrator?: Orchestrator;
+  /** Script critic for evaluating generated scripts. */
+  scriptCritic?: ScriptCriticService;
   /** Per-window limit for the model-backed trend endpoints. */
   aiRateLimit?: number;
   aiRateLimitWindowMs?: number;
@@ -186,6 +192,10 @@ export function createApp(options: CreateAppOptions): Express {
       trendService: options.trendService,
       audienceService: options.audienceService,
       voiceCoachService: options.voiceCoachService,
+      orchestrator: options.orchestrator,
+      scriptCritic: options.scriptCritic,
+      dnaRepository: options.dnaRepository,
+      logger,
       aiRateLimit: options.aiRateLimit,
       aiRateLimitWindowMs: options.aiRateLimitWindowMs,
     }),

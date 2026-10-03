@@ -49,7 +49,11 @@ Hard rules:
 - Keep every scene long enough for its narration to be spoken at a normal pace:
   roughly 2.5 spoken words per second, so a 30-word line needs about 12 seconds.
 - Output strict JSON only, matching the requested schema exactly. No prose, no
-  markdown, no code fences.`;
+  markdown, no code fences.
+
+When a CONTENT FORMAT is provided below, you MUST follow its structure and visual
+style. The format defines the narrative arc, pacing, and visual treatment. Match
+the scene count, durations, and visual style to the format's specifications.`;
 
 const USER = `APPROVED HOOK: {{hook}}
 
@@ -68,6 +72,7 @@ CREATOR DNA
 - catchphrases to weave in: {{dna_catchphrases}}
 - always do: {{dna_dos}}
 - never do: {{dna_donts}}
+{{format_block}}
 
 Plan a vertical short of {{target_seconds}} seconds in at most ${STORYBOARD_LIMITS.maxScenes} scenes.
 
@@ -91,6 +96,46 @@ export function formatScriptBlock(script: readonly { scene: string; text: string
     .join('\n');
 }
 
+/** Content format context for the storyboard prompt. */
+export interface StoryboardFormatContext {
+  name: string;
+  description: string;
+  pacing: string;
+  visualStyle: string;
+  structure: readonly { label: string; description: string }[];
+  sceneDuration: { min: number; max: number; default: number };
+  musicIntensity: number;
+  transitions: readonly string[];
+  captionStyle: string;
+  narrationStyle: string;
+}
+
+/**
+ * Formats the content format as a block for the storyboard prompt.
+ * When no format is provided, returns an empty string (the variable is still
+ * required by the template, but renders as nothing).
+ */
+export function formatFormatBlock(format: StoryboardFormatContext | null): string {
+  if (format === null) return '';
+
+  const structureText = format.structure
+    .map((step, i) => `${i + 1}. ${step.label}: ${step.description}`)
+    .join('\n');
+
+  return `CONTENT FORMAT: ${format.name}
+- Description: ${format.description}
+- Pacing: ${format.pacing}
+- Visual Style: ${format.visualStyle}
+- Caption Style: ${format.captionStyle}
+- Narration Style: ${format.narrationStyle}
+- Narrative Structure:\n${structureText}
+- Scene Duration: ${format.sceneDuration.min}-${format.sceneDuration.max}s (default ${format.sceneDuration.default}s)
+- Music Intensity: ${format.musicIntensity} (0-1, where 1 is very intense)
+- Transition Style: ${format.transitions.join(', ')}
+
+Match the storyboard to this format's pacing, visual style, and narrative structure.`;
+}
+
 export const storyboardV1: PromptTemplate<typeof storyboardDraftSchema> = {
   id: 'storyboard',
   version: 1,
@@ -109,6 +154,7 @@ export const storyboardV1: PromptTemplate<typeof storyboardDraftSchema> = {
     { name: 'dna_catchphrases', description: 'Catchphrases to weave in.', required: true },
     { name: 'dna_dos', description: 'Things the creator always does.', required: true },
     { name: 'dna_donts', description: 'Things the creator never does.', required: true },
+    { name: 'format_block', description: 'Content format context (empty string when no format).', required: true },
     { name: 'target_seconds', description: 'Target runtime for the short.', required: true },
   ],
   build(variables) {
