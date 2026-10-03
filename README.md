@@ -2,10 +2,10 @@
 
 > AI studio that learns who a creator is (their **Creator DNA**) and turns any idea or trend into a finished 9:16 short video that sounds like them: script, hooks, audience feedback, live voice coaching, video, music, and captions, all in one pipeline.
 
-🌐 **Live Demo:** [View it here](https://&lt;username&gt;.github.io/&lt;repo-name&gt;/)
+🌐 **Web preview:** [GitHub Pages](https://joshipriyanshi1409-blip.github.io/Qunet-video-generator/) (frontend only; see [local setup](#-getting-started) for API and renders)
 
-[![CI](https://github.com/&lt;username&gt;/&lt;repo-name&gt;/actions/workflows/ci.yml/badge.svg)](https://github.com/&lt;username&gt;/&lt;repo-name&gt;/actions/workflows/ci.yml)
-[![CD](https://github.com/&lt;username&gt;/&lt;repo-name&gt;/actions/workflows/deploy.yml/badge.svg)](https://github.com/&lt;username&gt;/&lt;repo-name&gt;/actions/workflows/deploy.yml)
+[![CI](https://github.com/joshipriyanshi1409-blip/Qunet-video-generator/actions/workflows/ci.yml/badge.svg)](https://github.com/joshipriyanshi1409-blip/Qunet-video-generator/actions/workflows/ci.yml)
+[![CD](https://github.com/joshipriyanshi1409-blip/Qunet-video-generator/actions/workflows/deploy.yml/badge.svg)](https://github.com/joshipriyanshi1409-blip/Qunet-video-generator/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-peach.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20.11-brightgreen)](https://nodejs.org)
 [![pnpm](https://img.shields.io/badge/pnpm-%3E%3D10-orange)](https://pnpm.io)
@@ -127,7 +127,7 @@ flowchart TB
 The three lines that shape everything else:
 
 - **The API owns the AI wrapper, the worker owns the encoder.** The API never renders and the worker never calls a text model. That is what lets the API stay small and scale on latency while the worker is large and scales on backlog.
-- **One origin in the browser.** Hosting rewrites `/api/**` to Cloud Run, so there is no CORS in production and the WebSocket is same-origin.
+- **One origin when deployed on Firebase Hosting.** Its config rewrites `/api/**` to Cloud Run. The GitHub Pages workflow only deploys the static web app and does not provide these rewrites; configure a backend URL or use Firebase Hosting for a functional deployment.
 - **Progress is fan-out, not broadcast.** The worker publishes to Redis pub/sub and *every* API replica re-broadcasts to the sockets it holds. That is why multiple API instances work without session affinity — affinity is for latency, not correctness.
 
 ## 📁 Structure
@@ -194,10 +194,7 @@ creatordna/
 
 ## 🚀 Getting Started
 
-> 🌐 **Live Demo:** [View it here](https://&lt;username&gt;.github.io/&lt;repo-name&gt;/)
->
-> Don't want to run it locally? The hosted build is the fastest way to look around.
-> Note that the deployed app has no AI keys, so renders use the demo cache.
+> 🌐 **Web preview:** [GitHub Pages](https://joshipriyanshi1409-blip.github.io/Qunet-video-generator/) hosts the frontend only. GitHub Pages does not proxy `/api`, `/health` or `/ws` to Cloud Run; for authentication and renders, run the stack locally or deploy a backend.
 
 ### Prerequisites
 
@@ -208,8 +205,8 @@ creatordna/
 ### 1. Clone
 
 ```bash
-git clone https://github.com/<username>/<repo-name>.git
-cd <repo-name>
+git clone https://github.com/joshipriyanshi1409-blip/Qunet-video-generator.git
+cd Qunet-video-generator
 ```
 
 ### 2. Install
@@ -293,7 +290,7 @@ Full annotated list in [`docs/setup-local-dev.md`](docs/setup-local-dev.md) and
 | `RENDER_COMPOSER` | worker | `auto` | `auto` \| `ffmpeg` \| `mock`. Production sets `ffmpeg` |
 | `WORKER_CONCURRENCY` | worker | `4` | Renders per instance; also what the autoscaler divides by |
 | `DEMO_MODE` / `DEMO_CACHE_DIR` | worker, api | `false` | Serves every render stage from the pre-baked cache |
-| `VITE_API_URL` | web (build) | `''` | **Empty is correct** — Hosting rewrites `/api` same-origin |
+| `VITE_API_URL` | web (build) | `''` | Empty for local proxy or Firebase Hosting rewrites; GitHub Pages needs a reachable backend URL |
 
 ## 📜 Scripts
 
@@ -349,9 +346,9 @@ What a creator does, and where in the code it lands:
      is worth more than any paragraph above. Keep it under 5 MB so it renders
      inline on a slow connection. -->
 
-![Demo — idea to finished 9:16 short](docs/images/demo.gif)
+A demo recording has not been added yet. Run the local demo below to try the workflow.
 
-**Or try it live:** 🌐 **[View it here](https://&lt;username&gt;.github.io/&lt;repo-name&gt;/)**
+**Web preview:** [GitHub Pages](https://joshipriyanshi1409-blip.github.io/Qunet-video-generator/) (frontend only; run the stack locally for a working demo).
 
 To reproduce the demo locally:
 
@@ -437,24 +434,3 @@ Bug reports and feature requests go through the issue templates in
 
 See [`CHANGELOG.md`](CHANGELOG.md) for what changed and when, and
 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for the expectations we hold each other to.
-
----
-
-## ⚠️ Where to put your own URLs
-
-Four placeholders need replacing before this README is publishable:
-
-1. **The live demo link** (line 5, and again at lines 197 and 354) — replace
-   `https://<username>.github.io/<repo-name>/` with your real GitHub Pages URL.
-2. **The CI and CD badge links** (lines 7–8) — replace `<username>` and
-   `<repo-name>`, or delete the two badges.
-3. **The clone command** in Getting Started (line 211) — 
-   `git clone https://github.com/<username>/<repo-name>.git`.
-
-The one that matters most is **line 5**: it is the "🌐 **Live Demo:**" line directly
-under the tagline, and it is the URL the Demo section and Getting Started point at.
-
-If you are publishing to GitHub Pages for the first time, remember that the
-[deploy workflow](.github/workflows/deploy.yml) cannot enable Pages for you — set
-**Settings → Pages → Source → GitHub Actions** once, by hand. See
-[`docs/deployment.md`](docs/deployment.md).
