@@ -9,3 +9,4 @@ export * from './storyboard.schema.js';
 export * from './voiceCoach.schema.js';
 export * from './health.schema.js';
 export * from './api.schema.js';
+export * from './contentFormat.schema.js';
