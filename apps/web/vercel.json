@@ -1,6 +1,0 @@
-{
-  "framework": "vite",
-  "buildCommand": "cd ../.. && corepack pnpm --filter @creatordna/web build",
-  "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}

@@ -54,8 +54,7 @@ async function renderSocketUrl(): Promise<string> {
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const query = params.toString();
-  const origin = import.meta.env.VITE_WS_ORIGIN || `${protocol}//${window.location.host}`;
-  return `${origin}${WS_PATH}${query.length > 0 ? `?${query}` : ''}`;
+  return `${protocol}//${window.location.host}${WS_PATH}${query.length > 0 ? `?${query}` : ''}`;
 }
 
 export class RenderSocket {

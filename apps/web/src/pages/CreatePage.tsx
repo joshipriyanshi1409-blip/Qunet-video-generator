@@ -16,7 +16,6 @@ import { useToast } from '../hooks/useToast';
 import { useUiStore } from '../store/useUiStore';
 import { useDnaProfile } from '../hooks/useDna';
 import { startRender } from '../lib/render';
-import { runArena } from '../lib/arena';
 import type { RenderCreateRequest } from '@creatordna/shared';
 
 /** Format category display names. */
@@ -72,9 +71,6 @@ export function CreatePage() {
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [arenaMode, setArenaMode] = useState<'fast' | 'balanced' | 'arena'>('fast');
-  const [arenaBusy, setArenaBusy] = useState<'hook' | 'script' | null>(null);
-  const [arenaResult, setArenaResult] = useState<{ modelId: string; score: number; reason: string } | null>(null);
 
   // AI format recommendations
   const [recommendations, setRecommendations] = useState<
@@ -155,21 +151,6 @@ export function CreatePage() {
     () => CONTENT_FORMATS.find((f) => f.id === selectedFormatId) ?? null,
     [selectedFormatId],
   );
-
-  async function generateWithArena(task: 'hook' | 'script') {
-    if (selectedFormat === null || !idea.trim()) return;
-    setArenaBusy(task);
-    setArenaResult(null);
-    try {
-      const result = await runArena({ task, mode: arenaMode, topic: idea.trim(), formatId: selectedFormat.id,
-        audience: (Array.isArray(dna.data?.dna.audience) ? dna.data.dna.audience.join(', ') : dna.data?.dna.audience) ?? '', instructions: task === 'script' ? `Opening hook: ${hook}. Write the narration as a concise short-video script.` : undefined });
-      if (task === 'hook') setHook(result.winner.content);
-      else setScriptBeats([{ scene: 'Narration', text: result.winner.content }]);
-      setArenaResult({ modelId: result.winner.modelId, score: result.winner.score, reason: result.winner.reason });
-    } catch (error) {
-      push({ title: 'Generation unavailable', description: error instanceof Error ? error.message : 'Configure Arena on the API.', tone: 'danger' });
-    } finally { setArenaBusy(null); }
-  }
 
   function handleIdeaSubmit(event: FormEvent): void {
     event.preventDefault();
@@ -465,19 +446,6 @@ export function CreatePage() {
             }
           />
           <CardContent className="space-y-4 pt-5">
-            <div className="rounded-lg border border-line p-4" aria-live="polite">
-              <label htmlFor="arena-mode" className="mr-3 text-caption font-medium">AI generation mode</label>
-              <select id="arena-mode" value={arenaMode} onChange={e => setArenaMode(e.target.value as typeof arenaMode)} className="rounded border border-line p-2">
-                <option value="fast">Fast (one model)</option><option value="balanced">Balanced (two models)</option><option value="arena">Arena (three models)</option>
-              </select>
-              <div className="mt-3 flex gap-2">
-                <Button type="button" disabled={arenaBusy !== null || dna.data === undefined} onClick={() => void generateWithArena('hook')}>Generate hook</Button>
-                <Button type="button" disabled={arenaBusy !== null || dna.data === undefined} onClick={() => void generateWithArena('script')}>Generate script</Button>
-              </div>
-              {arenaBusy && <p className="mt-2 text-caption">Generating {arenaBusy} — waiting for real model responses and evaluation…</p>}
-              {arenaResult && <p className="mt-2 text-caption">Selected {arenaResult.modelId} · {arenaResult.score}/100 — {arenaResult.reason}</p>}
-              {dna.data === undefined && <p className="mt-2 text-caption">Complete Creator DNA onboarding to enable generation.</p>}
-            </div>
             <div>
               <label htmlFor="hook" className="mb-1 block text-caption font-medium text-ink-700">
                 Hook (first line viewers see)

@@ -1,4 +1,3 @@
-import type { Router as ExpressRouter } from 'express';
 import { Router } from 'express';
 import type { AuthOptions } from '../middleware/auth.js';
 import type { DnaService } from '../services/dna.service.js';
@@ -33,7 +32,6 @@ import { createProjectRouter } from './project.routes.js';
  */
 export interface ApiRouterOptions {
   auth: AuthOptions;
-  arenaRouter?: ExpressRouter;
   pingJobService: PingJobService;
   renderJobService?: RenderJobService;
   dnaService?: DnaService;
@@ -61,7 +59,6 @@ export function createApiRouter(options: ApiRouterOptions): Router {
   const router = Router();
 
   router.use('/me', createMeRouter(auth));
-  if (options.arenaRouter) router.use('/arena', options.arenaRouter);
   router.use('/jobs', createJobsRouter(auth, pingJobService, options.renderJobService));
   if (options.dnaService !== undefined) {
     router.use('/dna', createDnaRouter(auth, options.dnaService));
