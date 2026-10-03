@@ -2,11 +2,12 @@ import type { ZodTypeAny } from 'zod';
 import {
   STORYBOARD_LIMITS,
   storyboardSchema,
+  type ContentFormatRecipe,
   type CreatorDna,
   type RenderCreateRequest,
   type Storyboard,
 } from '@creatordna/shared';
-import { formatScriptBlock, prompts } from '@creatordna/prompts';
+import { formatScriptBlock, formatFormatBlock, prompts, type StoryboardFormatContext } from '@creatordna/prompts';
 import type { Logger } from 'pino';
 import type {
   CaptionRequest,
@@ -77,7 +78,11 @@ export interface RenderAi {
    * cache wrapper around either one, selected by `DEMO_MODE`. See `demoCache.ts`.
    */
   readonly mode: 'mock' | 'live' | 'demo';
-  buildStoryboard(payload: RenderCreateRequest, dna: CreatorDna | null): Promise<Storyboard>;
+  buildStoryboard(
+    payload: RenderCreateRequest,
+    dna: CreatorDna | null,
+    format?: ContentFormatRecipe | null,
+  ): Promise<Storyboard>;
   /** One clip per scene. Falls back to a still frame when no clip model is set. */
   generateClip(request: ClipRequest): Promise<RenderMedia>;
   /** The voice-over. Falls back to a tone bed when no TTS model is set. */
@@ -149,19 +154,30 @@ export function dnaVariables(dna: CreatorDna | null): Record<string, string> {
  * saw the first time. Durations are spread across the target runtime and the
  * remainder is handed to the last scene, which keeps the total inside the cost
  * window by construction rather than by luck.
+ *
+ * When a format is provided, the visual prompts incorporate the format's
+ * visual style and the durations respect the format's recommended range.
  */
-export function mockStoryboard(payload: RenderCreateRequest): Storyboard {
+export function mockStoryboard(
+  payload: RenderCreateRequest,
+  format?: ContentFormatRecipe | null,
+): Storyboard {
   const scenes = payload.script.slice(0, STORYBOARD_LIMITS.maxScenes);
-  const target = STORYBOARD_LIMITS.defaultDurationSeconds;
+  const target = format?.recommendedDuration?.default ?? STORYBOARD_LIMITS.defaultDurationSeconds;
   const perScene = Math.floor(target / scenes.length);
   const remainder = target - perScene * scenes.length;
+
+  // Build a visual style suffix from the format when available
+  const visualSuffix = format
+    ? `${format.visualStyle} style, ${format.pacing} pacing, ${format.captionStyle} captions`
+    : 'soft peach and coral grade, clean modern SaaS look';
 
   return storyboardSchema.parse({
     scenes: scenes.map((beat, index) => ({
       sceneId: `scene-${index + 1}`,
       duration: perScene + (index === scenes.length - 1 ? remainder : 0),
       narration: beat.text,
-      visualPrompt: `${beat.scene}. Vertical 9:16, soft peach and coral grade, clean modern SaaS look.`,
+      visualPrompt: `${beat.scene}. Vertical 9:16, ${visualSuffix}.`,
       onScreenText: index === 0 ? payload.hook.slice(0, 120) : '',
     })),
   });
@@ -172,6 +188,22 @@ export interface LiveRenderAiDeps {
   logger: Logger;
   /** Model id for the text slot, read from config - never hard-coded. */
   model: string;
+}
+
+/** Converts a content format recipe to the storyboard prompt's format context. */
+function toFormatContext(format: ContentFormatRecipe): StoryboardFormatContext {
+  return {
+    name: format.name,
+    description: format.description,
+    pacing: format.pacing,
+    visualStyle: format.visualStyle,
+    structure: format.structure,
+    sceneDuration: format.sceneDuration,
+    musicIntensity: format.musicIntensity,
+    transitions: format.transitions,
+    captionStyle: format.captionStyle,
+    narrationStyle: format.narrationStyle,
+  };
 }
 
 /** Sends the registered storyboard prompt to a model. */
@@ -189,13 +221,16 @@ export function createLiveRenderAi(deps: LiveRenderAiDeps): RenderAi {
     composeMusic: (request) => Promise.resolve(mockMusic(request)),
     alignCaptions: (request) => Promise.resolve(mockCaptions(request)),
 
-    async buildStoryboard(payload, dna) {
+    async buildStoryboard(payload, dna, format) {
       const messages = template.build({
         ...dnaVariables(dna),
         hook: payload.hook,
         script_block: formatScriptBlock(payload.script),
         cta: payload.cta,
-        target_seconds: String(STORYBOARD_LIMITS.defaultDurationSeconds),
+        format_block: formatFormatBlock(format ? toFormatContext(format) : null),
+        target_seconds: String(
+          format?.recommendedDuration?.default ?? STORYBOARD_LIMITS.defaultDurationSeconds,
+        ),
       });
 
       const result = await deps.callJson.callJson<{ scenes: unknown[] }>(messages, {
@@ -223,8 +258,8 @@ export function createLiveRenderAi(deps: LiveRenderAiDeps): RenderAi {
 export function createMockRenderAi(): RenderAi {
   return {
     mode: 'mock',
-    buildStoryboard(payload) {
-      return Promise.resolve(mockStoryboard(payload));
+    buildStoryboard(payload, _dna, format) {
+      return Promise.resolve(mockStoryboard(payload, format));
     },
     generateClip(request) {
       return Promise.resolve(mockClip(request));

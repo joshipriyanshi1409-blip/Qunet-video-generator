@@ -1,9 +1,11 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
+  CONTENT_FORMAT_MAP,
   COST_LIMITS,
   RENDER_STAGE_PLAN,
   storyboardSchema,
+  type ContentFormatRecipe,
   type RenderAsset,
   type RenderCreateRequest,
   type RenderJob,
@@ -122,17 +124,33 @@ function voiceDirection(dna: RenderJob['dna']): string | undefined {
 /**
  * What the music bed should feel like.
  *
- * Built from the profile and the hook rather than from a fixed adjective list,
- * because "upbeat corporate" under a deadpan finance creator is worse than no
- * music at all.
+ * Built from the profile, the hook, and the content format rather than from
+ * a fixed adjective list, because "upbeat corporate" under a deadpan finance
+ * creator is worse than no music at all.
  */
-function musicBrief(dna: RenderJob['dna'], hook: string): string {
+function musicBrief(
+  dna: RenderJob['dna'],
+  hook: string,
+  format?: ContentFormatRecipe | null,
+): string {
   const mood =
     dna === null
       ? 'clean, modern, unobtrusive'
       : [dna.tone.join(', '), dna.style].filter((part) => part.length > 0).join(', ');
+
+  const intensity = format?.musicIntensity ?? 0.5;
+  const intensityLabel =
+    intensity >= 0.7 ? 'energetic and driving' :
+    intensity >= 0.4 ? 'moderate and supportive' :
+    'subtle and ambient';
+
+  const formatContext = format
+    ? ` Format: ${format.name} (${format.category}).`
+    : '';
+
   return `Instrumental background bed for a short vertical video. Mood: ${mood}. ` +
-    `It sits under a voice-over about: ${hook}. No vocals, no lyrics, no sudden drops.`;
+    `Energy level: ${intensityLabel} (${(intensity * 100).toFixed(0)}% intensity).` +
+    `It sits under a voice-over about: ${hook}.${formatContext} No vocals, no lyrics, no sudden drops.`;
 }
 
 /** File extension for an asset whose mime type did not name one. */
@@ -205,10 +223,18 @@ export function createStages(deps: StageDeps): Record<WorkStage, StageRunner> {
       }
 
       await report(0.2, 'Planning the scenes');
+
+      // Resolve the content format from the render request, when one was specified.
+      // The format drives the narrative structure, visual style, pacing and
+      // scene durations in the storyboard prompt.
+      const formatId = context.payload.contentFormatId;
+      const format: ContentFormatRecipe | null =
+        formatId !== undefined ? (CONTENT_FORMAT_MAP.get(formatId) ?? null) : null;
+
       // The DNA snapshotted on the job is what gets injected here. Passing
       // `null` would make every storyboard read as "unknown niche, unknown
       // tone" - the profile is the product, so it has to reach the prompt.
-      const built = await deps.ai.buildStoryboard(context.payload, context.job.dna ?? null);
+      const built = await deps.ai.buildStoryboard(context.payload, context.job.dna ?? null, format);
 
       const body = Buffer.from(JSON.stringify(built, null, 2), 'utf8');
       const asset = await deps.store.put({
@@ -369,8 +395,13 @@ export function createStages(deps: StageDeps): Record<WorkStage, StageRunner> {
 
       await report(0.1, 'scoring the music bed');
 
+      // Resolve format for music intensity
+      const formatId = context.payload.contentFormatId;
+      const format: ContentFormatRecipe | null =
+        formatId !== undefined ? (CONTENT_FORMAT_MAP.get(formatId) ?? null) : null;
+
       const scored = await deps.ai.composeMusic({
-        brief: musicBrief(context.job.dna, context.payload.hook),
+        brief: musicBrief(context.job.dna, context.payload.hook, format),
         durationSeconds: duration,
       });
 

@@ -153,6 +153,8 @@ export const renderCreateRequestSchema = z.object({
   hashtags: z.array(z.string().trim().min(1).max(40)).max(12).default([]),
   /** The DNA version this script was written against, for reproducibility. */
   dnaVersion: z.number().int().min(1).optional(),
+  /** Content format id that influenced the script generation. */
+  contentFormatId: z.string().trim().min(1).max(40).optional(),
 });
 
 /**

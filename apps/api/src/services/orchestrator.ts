@@ -102,14 +102,14 @@ export interface ProjectContext {
 
   /** Script evaluation from the critic. */
   scriptEvaluation: {
-    verdict: 'PASS' | 'REVISION_REQUIRED';
-    score: number;
-    feedback: string[];
+    verdict: 'APPROVE' | 'REVISE';
+    overallScore: number;
     hookStrength: number;
     pacingScore: number;
-    audienceFit: number;
     dnaFit: number;
     formatCompliance: number;
+    feedback: string[];
+    revisionSuggestions?: string[];
   } | null;
 
   /** The storyboard for rendering. */

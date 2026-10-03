@@ -204,6 +204,7 @@ export function CreatePage() {
       caption: caption.trim().length > 0 ? caption.trim() : undefined,
       hashtags: hashtags.filter((t) => t.length > 0),
       dnaVersion: dna.data?.dna.dnaVersion,
+      contentFormatId: selectedFormat?.id,
     };
 
     try {
