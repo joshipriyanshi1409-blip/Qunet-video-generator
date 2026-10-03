@@ -1,3 +1,4 @@
+import type { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import cors, { type CorsOptions } from 'cors';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
@@ -60,6 +61,7 @@ export interface CreateAppOptions {
   voiceCoachService?: VoiceCoachService;
   /** Render jobs. Omit to run without the render queue (Redis off). */
   renderJobService?: RenderJobService;
+  arenaRouter?: Router;
   /** AI orchestrator for the full video creation pipeline. */
   orchestrator?: Orchestrator;
   /** Script critic for evaluating generated scripts. */
@@ -186,6 +188,7 @@ export function createApp(options: CreateAppOptions): Express {
     createApiRouter({
       auth,
       pingJobService,
+      arenaRouter: options.arenaRouter,
       renderJobService: options.renderJobService,
       dnaService,
       dnaLearningService: options.dnaLearningService,
