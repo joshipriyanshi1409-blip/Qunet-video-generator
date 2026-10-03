@@ -434,3 +434,11 @@ Bug reports and feature requests go through the issue templates in
 
 See [`CHANGELOG.md`](CHANGELOG.md) for what changed and when, and
 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for the expectations we hold each other to.
+
+## Deploying the web frontend on Vercel
+
+See [Vercel deployment](docs/vercel-deployment.md) for the workspace build,
+Firebase/CORS settings and separate API/worker requirements. Vercel alone hosts
+only the static frontend, **not** the render worker, WebSocket API or models.
+An optional hook/script text Arena can be enabled on the API with a persistent
+OpenAI-compatible inference endpoint; see [Arena implementation status](docs/arena-implementation-plan.md).

@@ -1,3 +1,6 @@
+import { createArenaRouter } from './routes/arena.routes.js';
+import { createOpenAiCompatibleClient } from './services/ai/openAiCompatibleClient.js';
+import type { ArenaModel } from './services/ai/arena.js';
 import 'dotenv/config';
 import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
@@ -327,7 +330,24 @@ async function main(): Promise<void> {
           registry: liveRegistry,
         });
 
+  // Optional Arena serving. No model endpoint means no Arena route or fake responses.
+  const arenaIds = (process.env.ARENA_TEXT_MODELS ?? '').split(',').map(id => id.trim()).filter(Boolean);
+  const arenaEndpoint = process.env.ARENA_BASE_URL;
+  const arenaJudge = process.env.ARENA_JUDGE_MODEL;
+  const arenaClient = arenaEndpoint && arenaIds.length && arenaJudge
+    ? createOpenAiCompatibleClient(arenaEndpoint, process.env.ARENA_API_KEY) : undefined;
+  const arenaModels: ArenaModel[] = arenaClient ? arenaIds.map((model, i) => ({
+    id: `text-${i + 1}`, model, client: arenaClient, tasks: ['hook', 'script'],
+    ramMb: 0, vramMb: 0, maxConcurrency: 2, expectedLatencyMs: 1000 + i,
+  })) : [];
+  const arenaRouter = arenaClient && arenaJudge ? createArenaRouter({
+    auth: { config, logger, verifyToken }, dna: dnaRepository, cache,
+    models: arenaModels, judge: { id: 'judge', model: arenaJudge, client: arenaClient,
+      tasks: ['hook', 'script'], ramMb: 0, vramMb: 0, maxConcurrency: 1, expectedLatencyMs: 1000 },
+  }) : undefined;
+
   const app = createApp({
+    arenaRouter,
     config,
     logger,
     redis,
