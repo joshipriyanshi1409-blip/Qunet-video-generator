@@ -7,7 +7,10 @@ import {
   type HookStyle,
   type JobStatusResponse,
   type RankedTrend,
+  type RenderAsset,
+  type RenderStage,
 } from '@creatordna/shared';
+import { DEMO_VIDEO_PATH, demoVideoUrl } from './demoAssets';
 
 const DEMO_DNA_STORAGE_KEY = 'creatordna.demo.dna.v1';
 const DEMO_JOBS_STORAGE_KEY = 'creatordna.demo.jobs.v1';
@@ -114,6 +117,112 @@ const DEMO_RANKED_TRENDS: RankedTrend[] = [
   },
 ];
 
+/**
+ * The demo render's clock.
+ *
+ * A showcase deployment has no worker, so a job document would otherwise sit
+ * frozen wherever it was first written. So a *started* demo job is simulated on
+ * a fixed timeline measured from `data.demoStartedAt`: the progress screen shows
+ * the pipeline actually moving, and about fifteen seconds later the job is
+ * finished, with an MP4 asset on it.
+ *
+ * It is derived from the clock rather than from a `setTimeout`, so a reload
+ * halfway through picks the job up exactly where it should be, and a tab left
+ * open costs nothing.
+ */
+interface DemoRenderStep {
+  /** Milliseconds after the job was started. */
+  atMs: number;
+  stage: RenderStage;
+  progress: number;
+}
+
+export const DEMO_RENDER_STEPS: readonly DemoRenderStep[] = [
+  { atMs: 0, stage: 'queued', progress: 0 },
+  { atMs: 900, stage: 'script', progress: 6 },
+  { atMs: 3_000, stage: 'storyboard', progress: 18 },
+  { atMs: 5_200, stage: 'assets', progress: 38 },
+  { atMs: 7_400, stage: 'voice', progress: 56 },
+  { atMs: 9_000, stage: 'music', progress: 68 },
+  { atMs: 10_600, stage: 'captions', progress: 80 },
+  { atMs: 12_000, stage: 'compose', progress: 90 },
+  { atMs: 13_400, stage: 'qc', progress: 97 },
+  { atMs: 15_000, stage: 'completed', progress: 100 },
+];
+
+/** How long a simulated render runs, in milliseconds. */
+export const DEMO_RENDER_TOTAL_MS = 15_000;
+
+/**
+ * The asset a finished demo render reports.
+ *
+ * It points at the MP4 the web app ships in `public/`, not at the API's asset
+ * mount: on a static host nothing serves `/api/v1/render-assets/...`, so the
+ * player would report a broken file on a job that claims to be finished.
+ */
+function demoRenderAssets(): RenderAsset[] {
+  return [
+    {
+      kind: 'mp4',
+      storagePath: DEMO_VIDEO_PATH,
+      url: demoVideoUrl(),
+      mimeType: 'video/mp4',
+    },
+  ];
+}
+
+/** When a demo job's simulated render started, or null when it is not simulated. */
+function demoStartedAt(job: JobStatusResponse): number | null {
+  const startedAt = job.data.demoStartedAt;
+  return typeof startedAt === 'number' && Number.isFinite(startedAt) ? startedAt : null;
+}
+
+/**
+ * One job document as it looks at `now`.
+ *
+ * A job that is already terminal, or that was never started on the timeline (the
+ * seeded showcase job), is returned untouched: the simulation must never reopen
+ * a finished render.
+ */
+function simulateDemoJob(job: JobStatusResponse, now: number): JobStatusResponse {
+  const startedAt = demoStartedAt(job);
+  if (startedAt === null) return job;
+  if (job.state === 'completed' || job.state === 'failed') return job;
+
+  const elapsedMs = Math.max(0, now - startedAt);
+  let step: DemoRenderStep = DEMO_RENDER_STEPS[0]!;
+  for (const candidate of DEMO_RENDER_STEPS) {
+    if (candidate.atMs <= elapsedMs) step = candidate;
+  }
+
+  const finished = step.stage === 'completed';
+  return {
+    ...job,
+    // `queued` is the only stage the queue has not picked up yet; everything
+    // after it is a running job.
+    state: finished ? 'completed' : step.stage === 'queued' ? 'waiting' : 'active',
+    stage: step.stage,
+    progress: step.progress,
+    // A finished job has run at least once, whichever way the demo got here.
+    attemptsMade: finished ? Math.max(1, job.attemptsMade) : job.attemptsMade,
+    assets: finished ? demoRenderAssets() : job.assets,
+  };
+}
+
+/**
+ * Reads one demo job, simulated to `now`.
+ *
+ * An id the demo backend never wrote falls back to the seeded showcase job, the
+ * same way `/render/:id` always has. On a deployment with no API there is no
+ * such thing as a job that "does not exist", and a hand-typed URL is better
+ * answered with something playable than with an error the visitor cannot act on.
+ */
+function readDemoJob(jobId: string, now: number): JobStatusResponse {
+  const jobs = readDemoJobs();
+  const stored = jobs[jobId] ?? jobs['demo-binary-search']!;
+  return { ...simulateDemoJob(stored, now), jobId };
+}
+
 function buildDefaultJobs(): Record<string, JobStatusResponse> {
   return {
     'demo-binary-search': {
@@ -146,13 +255,7 @@ function buildDefaultJobs(): Record<string, JobStatusResponse> {
         ],
       },
       stage: 'completed',
-      assets: [
-        {
-          kind: 'mp4',
-          storagePath: 'renders/local-creator/demo-binary-search/final.mp4',
-          url: '/api/v1/render-assets/demo.mp4',
-        },
-      ],
+      assets: demoRenderAssets(),
       error: null,
     },
   };
@@ -504,9 +607,9 @@ export function handleDemoFallback(
     const job: JobStatusResponse = {
       jobId,
       name: 'render-video',
-      state: 'completed',
-      progress: 100,
-      attemptsMade: 1,
+      state: 'waiting',
+      progress: 0,
+      attemptsMade: 0,
       failedReason: null,
       returnvalue: null,
       data: {
@@ -524,15 +627,15 @@ export function handleDemoFallback(
                 text: 'Binary search is a simple and efficient algorithm that helps us find an element in sorted array in log n time.',
               },
             ],
+        /**
+         * When this simulated render started. `data` is an open record on the
+         * job document, and with no worker behind it this timestamp is the only
+         * thing that makes the job move - see `simulateDemoJob`.
+         */
+        demoStartedAt: Date.now(),
       },
-      stage: 'completed',
-      assets: [
-        {
-          kind: 'mp4',
-          storagePath: `renders/local-creator/${jobId}/final.mp4`,
-          url: '/api/v1/render-assets/demo.mp4',
-        },
-      ],
+      stage: 'queued',
+      assets: [],
       error: null,
     };
     writeDemoJob(job);
@@ -540,19 +643,53 @@ export function handleDemoFallback(
     return {
       jobId,
       queue: 'render',
-      state: 'completed',
-      stage: 'completed',
-      progress: 100,
+      state: 'waiting',
+      stage: 'queued',
+      progress: 0,
       resumedFromAssets: false,
+    };
+  }
+
+  if (path.startsWith('/api/v1/jobs/')) {
+    const jobId = decodeURIComponent(path.slice('/api/v1/jobs/'.length));
+    return readDemoJob(jobId, Date.now());
+  }
+
+  if (method === 'POST' && path.startsWith('/api/v1/render/') && path.endsWith('/retry')) {
+    const jobId = decodeURIComponent(path.split('/')[4] ?? 'demo-binary-search');
+    // Read through the simulation: the attempt counter continues from the render
+    // the creator actually watched, not from the document's starting point.
+    const current = readDemoJob(jobId, Date.now());
+    const restarted: JobStatusResponse = {
+      ...current,
+      state: 'waiting',
+      stage: 'queued',
+      progress: 0,
+      // A retry re-runs the pipeline, so the finished asset is gone until the
+      // timeline reports it again.
+      assets: [],
+      error: null,
+      failedReason: null,
+      returnvalue: null,
+      attemptsMade: current.attemptsMade + 1,
+      data: { ...current.data, demoStartedAt: Date.now() },
+    };
+    writeDemoJob(restarted);
+
+    return {
+      jobId,
+      queue: 'render',
+      state: 'waiting',
+      stage: 'queued',
+      progress: 0,
+      resumedFromAssets: current.assets.length > 0,
     };
   }
 
   if (path.startsWith('/api/v1/render/')) {
     const parts = path.split('/');
     const jobId = decodeURIComponent(parts[4] ?? 'demo-binary-search');
-    const jobs = readDemoJobs();
-    const found = jobs[jobId] ?? jobs['demo-binary-search']!;
-    return { ...found, jobId };
+    return readDemoJob(jobId, Date.now());
   }
 
   if (path.startsWith('/api/v1/voice-coach/quota')) {

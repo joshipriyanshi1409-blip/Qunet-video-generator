@@ -25,6 +25,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   creator with a complete DNA profile, warms the render cache, and runs one real
   render to produce the golden video.
 
+- **`apps/web/public/demo/creatordna-demo.mp4`** - a 46-second 9:16 demo render
+  (plus its poster frame and the script that generates both, in
+  `apps/web/scripts/`), so the showcase deployments have a real video to play.
+
 ### Changed
 
 - **Firebase Hosting is configured** - `infra/firebase/firebase.json` now hosts
@@ -37,6 +41,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A finished render on the showcase deployments could not be played.** The demo
+  backend reported an MP4 at `/api/v1/render-assets/demo.mp4`, a path only the API
+  serves - so on Vercel or Pages the player fell through to "This video could not
+  be played". Demo jobs now reference the bundled
+  `public/demo/creatordna-demo.mp4`, and the demo render is simulated on a clock
+  so a started job finishes instead of sitting at 0%.
+- **`GET /api/v1/jobs/:jobId` had no demo backend route.** The progress screen
+  (and therefore the render journey) failed with "The API returned an unexpected
+  shape" the moment a job was started. The route is now answered, and its
+  response is validated against `jobStatusResponseSchema` in the test suite.
 - **`seed:demo` was missing from `apps/api/package.json`** although the README
   referenced it. It is now a real script.
 - **Pre-existing type errors in `apps/api/scripts/smoke.ts`** and
