@@ -113,8 +113,8 @@ export function MyDNAPage() {
   return (
     <>
       <PageHeader
-        title="My DNA"
-        description="One persistent profile injected into every prompt: scripts, hooks, voice coaching and video."
+        title="Your Creator DNA"
+        description="This is what makes your content, your content. Based on your inputs, previous posts and preferences."
         actions={
           <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
             Edit DNA
@@ -122,58 +122,109 @@ export function MyDNAPage() {
         }
       />
 
-      {/* --- sync ring ------------------------------------------------------ */}
-      <Card className="mb-6">
-        <CardContent className="flex flex-col items-center gap-6 pt-6 sm:flex-row sm:items-center">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: motionTokens.slow, ease: motionTokens.ease }}
-          >
-            <ProgressRing value={score.score} label="DNA sync" size={132} thickness={11} />
-          </motion.div>
+      {/* --- Screen 2 Hero Row: Multi-Segment DNA Sync Ring + Trend Remix Card --- */}
+      <div className="mb-6 grid gap-5 lg:grid-cols-[1.25fr_1fr]">
+        <Card>
+          <CardContent className="flex flex-col items-center gap-6 pt-6 sm:flex-row sm:items-center">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: motionTokens.slow, ease: motionTokens.ease }}
+              className="relative flex items-center justify-center"
+            >
+              {/* Multi-color decorative halo around the accessible ProgressRing */}
+              <svg
+                aria-hidden="true"
+                className="pointer-events-none absolute size-[148px] -rotate-90"
+                viewBox="0 0 148 148"
+              >
+                <circle cx="74" cy="74" r="66" fill="none" stroke="#2e9e63" strokeWidth="6" strokeDasharray="100 320" strokeLinecap="round" />
+                <circle cx="74" cy="74" r="66" fill="none" stroke="#ff7f55" strokeWidth="6" strokeDasharray="110 320" strokeDashoffset="-105" strokeLinecap="round" />
+                <circle cx="74" cy="74" r="66" fill="none" stroke="#8b5cf6" strokeWidth="6" strokeDasharray="95 320" strokeDashoffset="-220" strokeLinecap="round" />
+                <circle cx="74" cy="74" r="66" fill="none" stroke="#3b7dd8" strokeWidth="6" strokeDasharray="85 320" strokeDashoffset="-320" strokeLinecap="round" />
+              </svg>
+              <ProgressRing value={score.score} label="DNA sync" size={132} thickness={11} />
+            </motion.div>
 
-          <div className="min-w-0 flex-1 text-center sm:text-left">
-            <h2 className="text-title font-semibold text-ink-900">DNA sync {score.score}%</h2>
-            <p className="mt-1 text-body text-ink-500">
-              {score.score === 100
-                ? 'Your profile is complete and consistent - every prompt uses it.'
-                : 'Complete your profile so every prompt sounds like you.'}
-            </p>
-
-            <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Metric label="Complete" value={`${score.completeness}%`} />
-              <Metric label="Consistent" value={`${score.consistency}%`} />
-              <Metric label="Version" value={String(dna.dnaVersion)} />
-              <Metric label="Context" value={`${profile.contextTokens} tok`} />
-            </dl>
-
-            {score.missingFields.length > 0 ? (
-              <p className="mt-4 text-caption text-ink-500">
-                <span className="font-medium text-ink-700">Still missing: </span>
-                {score.missingFields.join(', ')}.
+            <div className="min-w-0 flex-1 text-center sm:text-left">
+              <h2 className="text-title font-semibold text-ink-900">DNA sync {score.score}%</h2>
+              <p className="mt-1 text-body text-ink-500">
+                {score.score === 100
+                  ? 'Your profile is complete and consistent - every prompt uses it.'
+                  : 'Complete your profile so every prompt sounds like you.'}
               </p>
-            ) : null}
 
-            {score.inconsistencies.length > 0 ? (
-              <ul className="mt-3 space-y-1">
-                {score.inconsistencies.map((issue) => (
-                  <li key={issue} className="text-caption text-warning-strong">
-                    {issue}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        </CardContent>
-      </Card>
+              <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Metric label="Complete" value={`${score.completeness}%`} />
+                <Metric label="Consistent" value={`${score.consistency}%`} />
+                <Metric label="Version" value={String(dna.dnaVersion)} />
+                <Metric label="Context" value={`${profile.contextTokens} tok`} />
+              </dl>
 
-      {/* --- content / audience / style ------------------------------------- */}
+              {score.missingFields.length > 0 ? (
+                <p className="mt-4 text-caption text-ink-500">
+                  <span className="font-medium text-ink-700">Still missing: </span>
+                  {score.missingFields.join(', ')}.
+                </p>
+              ) : null}
+
+              {score.inconsistencies.length > 0 ? (
+                <ul className="mt-3 space-y-1">
+                  {score.inconsistencies.map((issue) => (
+                    <li key={issue} className="text-caption text-warning-strong">
+                      {issue}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col justify-between border-peach-200 bg-gradient-to-br from-surface to-peach-50/70">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <span
+                aria-hidden="true"
+                className="flex size-10 items-center justify-center rounded-xl bg-info-soft text-body-lg text-info-strong"
+              >
+                ✨
+              </span>
+              <h3 className="text-body-lg font-bold text-ink-900">Trend Remix</h3>
+            </div>
+            <p className="mt-3 text-body text-ink-700">
+              Based on your inputs, previous posts and preferences.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => navigate('/trends/remix')}>
+                Explore Trends
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => navigate('/dna/history')}>
+                Version history
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* --- 3 Pillar Summary Cards: Content (94%) / Audience (88%) / Style (90%) --- */}
       <ul className="mb-6 grid gap-4 sm:grid-cols-3">
         <li>
           <Card className="h-full">
-            <CardHeader title="Content" description="What you make and how." />
+            <CardHeader
+              title="Content"
+              description="What you make and how."
+              action={
+                <span className="rounded-pill bg-info-soft px-2.5 py-0.5 text-caption font-bold text-info-strong">
+                  (94%)
+                </span>
+              }
+            />
             <CardContent>
+              <div className="mb-3 flex items-center gap-2 rounded-xl bg-info-soft/50 px-3 py-2">
+                <span aria-hidden="true">👤</span>
+                <span className="text-caption font-semibold text-ink-900">{dna.niche}</span>
+              </div>
               <DefinitionList
                 rows={[
                   { label: 'Niche', value: dna.niche },
@@ -194,8 +245,22 @@ export function MyDNAPage() {
 
         <li>
           <Card className="h-full">
-            <CardHeader title="Audience" description="Who you are talking to." />
+            <CardHeader
+              title="Audience"
+              description="Who you are talking to."
+              action={
+                <span className="rounded-pill bg-success-soft px-2.5 py-0.5 text-caption font-bold text-success-strong">
+                  (88%)
+                </span>
+              }
+            />
             <CardContent>
+              <div className="mb-3 flex items-center gap-2 rounded-xl bg-success-soft/50 px-3 py-2">
+                <span aria-hidden="true">👥</span>
+                <span className="text-caption font-semibold text-ink-900">
+                  {AGE_LABELS[dna.audienceAgeRange]}
+                </span>
+              </div>
               <DefinitionList
                 rows={[
                   {
@@ -212,8 +277,20 @@ export function MyDNAPage() {
 
         <li>
           <Card className="h-full">
-            <CardHeader title="Style" description="Pacing, personality, rules." />
+            <CardHeader
+              title="Style"
+              description="Pacing, personality, rules."
+              action={
+                <span className="rounded-pill bg-peach-100 px-2.5 py-0.5 text-caption font-bold text-peach-800">
+                  (90%)
+                </span>
+              }
+            />
             <CardContent>
+              <div className="mb-3 flex items-center gap-2 rounded-xl bg-peach-50 px-3 py-2">
+                <span aria-hidden="true">☀️</span>
+                <span className="text-caption font-semibold text-ink-900">{dna.style}</span>
+              </div>
               <DefinitionList
                 rows={[
                   { label: 'Style', value: dna.style },
@@ -229,6 +306,49 @@ export function MyDNAPage() {
           </Card>
         </li>
       </ul>
+
+      {/* --- Screen 2: Based on your previous content (4 stats row) --- */}
+      <section aria-labelledby="previous-content-stats" className="mb-6">
+        <h3 id="previous-content-stats" className="mb-3 text-body font-bold text-ink-900">
+          Based on your previous content
+        </h3>
+        <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
+          <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+            <div className="flex items-center gap-2">
+              <span aria-hidden="true" className="text-body-lg">🎬</span>
+              <span className="text-title font-bold text-ink-900">12</span>
+            </div>
+            <p className="mt-1.5 text-tiny text-ink-500">Reels/Videos posts analyzed</p>
+          </div>
+          <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+            <div className="flex items-center gap-2">
+              <span aria-hidden="true" className="text-body-lg">💡</span>
+              <span className="text-title font-bold text-ink-900">8</span>
+            </div>
+            <p className="mt-1.5 text-tiny text-ink-500">Preferred hooks</p>
+          </div>
+          <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+            <div className="flex items-center gap-2">
+              <span aria-hidden="true" className="text-body-lg">🔄</span>
+              <span className="text-title font-bold text-ink-900">4</span>
+            </div>
+            <p className="mt-1.5 text-tiny text-ink-500">Recurring topics</p>
+          </div>
+          <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+            <div className="flex items-center gap-2">
+              <span aria-hidden="true" className="text-body-lg">🎯</span>
+              <span className="text-title font-bold text-ink-900">High</span>
+            </div>
+            <p className="mt-1.5 text-tiny text-ink-500">Engagement with educational content</p>
+          </div>
+        </div>
+      </section>
+
+      <div className="mb-6 flex items-center justify-center gap-2 rounded-2xl border border-peach-200 bg-peach-50 px-4 py-3 text-caption font-medium text-peach-800">
+        <span aria-hidden="true">💡</span>
+        <span>Your DNA helps us create content that truly feels like you!</span>
+        <span aria-hidden="true">🤍</span>
+      </div>
 
       {/* --- your content style --------------------------------------------- */}
       <Card className="mb-6">

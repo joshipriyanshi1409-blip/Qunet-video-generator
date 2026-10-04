@@ -1,6 +1,18 @@
 import 'dotenv/config';
 import { createServer } from 'node:http';
+import { mkdir } from 'node:fs/promises';
+import { createConnection } from 'node:net';
+import { join } from 'node:path';
 import { WebSocketServer } from 'ws';
+import { creatorDnaSchema, type RenderProgressEvent } from '@creatordna/shared';
+import {
+  createDemoAssetCache,
+  createLocalDiskAssetStore,
+  createMockRenderAi,
+  resolveComposer,
+  runRenderPipeline,
+  withDemoCache,
+} from '@creatordna/render';
 import { createApp } from './app.js';
 import { createConfig } from './config/index.js';
 import { EnvValidationError, parseApiEnv, type ApiEnv } from './config/env.js';
@@ -61,7 +73,72 @@ import {
 
 const verifyToken = verifyIdToken;
 
+async function isRedisReachable(redisUrl: string): Promise<boolean> {
+  try {
+    const parsed = new URL(redisUrl);
+    const host = parsed.hostname || '127.0.0.1';
+    const port = parsed.port ? Number(parsed.port) : 6379;
+    return await new Promise<boolean>((resolve) => {
+      const socket = createConnection({ host, port });
+      const timer = setTimeout(() => {
+        socket.destroy();
+        resolve(false);
+      }, 250);
+      socket.once('connect', () => {
+        clearTimeout(timer);
+        socket.end();
+        resolve(true);
+      });
+      socket.once('error', () => {
+        clearTimeout(timer);
+        socket.destroy();
+        resolve(false);
+      });
+    });
+  } catch {
+    return false;
+  }
+}
+
+const DEFAULT_CREATOR_DNA = creatorDnaSchema.parse({
+  niche: 'Tech (CSE)',
+  audienceAgeRange: '18-24',
+  audienceType: 'students',
+  tone: ['friendly', 'educational'],
+  audience: ['Students (18-24)', 'Beginner Coders', 'Working Developers'],
+  style: 'Friendly - Educational',
+  personality: ['relatable', 'encouraging'],
+  format: 'talking-head',
+  vocabulary: ['binary search', 'log n', 'sorted array', 'DSA'],
+  catchphrases: [
+    'Binary search in 30 seconds',
+    'Binary Search Made Easy',
+  ],
+  dos: ['use practical examples', 'relatable student stories'],
+  donts: ['dry theory dumps', 'skip visual walkthroughs'],
+  samplePosts: [
+    { text: 'POV: You finally understand Binary Search after 3 days. Binary Search Made Easy!' },
+    { text: 'A day in my life as a CSE student prepping for coding interviews.' },
+  ],
+  dnaVersion: 3,
+});
+
 async function main(): Promise<void> {
+  if ((process.env.NODE_ENV ?? 'development') === 'development') {
+    if (process.env.DEV_AUTH_BYPASS === undefined) {
+      process.env.DEV_AUTH_BYPASS = 'true';
+    }
+    if (process.env.GEMINI_API_KEY === undefined && process.env.AI_STUB_CLIENT === undefined) {
+      process.env.AI_STUB_CLIENT = 'true';
+    }
+    if (process.env.REDIS_ENABLED === undefined) {
+      const reachable = await isRedisReachable(process.env.REDIS_URL ?? 'redis://127.0.0.1:6379');
+      if (!reachable) {
+        process.env.REDIS_ENABLED = 'false';
+      }
+    }
+  }
+
   // --- boot: fail fast on a bad environment -------------------------------
   let env: ApiEnv;
   try {
@@ -100,6 +177,13 @@ async function main(): Promise<void> {
       { directory: config.env.DNA_STORE_DIR },
       'Firestore is not configured - Creator DNA is stored in a local file (development only).',
     );
+    for (const defaultUid of ['local-creator', 'demo-creator']) {
+      const existing = await dnaRepository.get(defaultUid).catch(() => null);
+      if (existing === null) {
+        await dnaRepository.save(defaultUid, DEFAULT_CREATOR_DNA);
+        logger.info({ uid: defaultUid }, 'seeded default Creator DNA profile');
+      }
+    }
   } else {
     logger.info('creator dna repository: firestore');
   }
@@ -250,6 +334,58 @@ async function main(): Promise<void> {
     logger,
     enabled: config.env.REDIS_ENABLED,
   });
+
+  let wsBroadcast: ((channel: string, event: RenderProgressEvent) => void) | null = null;
+
+  const inProcessEnqueue =
+    queues !== null
+      ? null
+      : (jobId: string) => {
+          void (async () => {
+            try {
+              const dataDir = config.env.RENDER_ASSET_DIR;
+              const cacheDir = config.env.DEMO_CACHE_DIR;
+              const workRoot = join(dataDir, 'work');
+              await mkdir(workRoot, { recursive: true });
+              const demoCache = createDemoAssetCache({ dir: cacheDir, logger });
+              const renderAi = withDemoCache(createMockRenderAi(), demoCache);
+              const composer = await resolveComposer({
+                mode: config.env.RENDER_COMPOSER,
+                binary: config.env.FFMPEG_PATH,
+              });
+              const store = createLocalDiskAssetStore({
+                root: dataDir,
+                publicBaseUrl: config.env.RENDER_ASSET_MOUNT,
+              });
+              const events = {
+                publish(event: RenderProgressEvent): Promise<void> {
+                  wsBroadcast?.(renderChannel(event.jobId), event);
+                  return Promise.resolve();
+                },
+                close(): Promise<void> {
+                  return Promise.resolve();
+                },
+              };
+              await runRenderPipeline(
+                {
+                  repository: renderJobRepository,
+                  store,
+                  ai: renderAi,
+                  composer,
+                  logger,
+                  events,
+                  workRoot,
+                  width: 1080,
+                  height: 1920,
+                },
+                jobId,
+              );
+            } catch (error) {
+              logger.error({ err: error, jobId }, 'in-process render pipeline failed');
+            }
+          })();
+        };
+
   const renderJobService = createRenderJobService({
     queues,
     logger,
@@ -258,6 +394,7 @@ async function main(): Promise<void> {
     // The job snapshots the profile it was rendered against, so a retry is
     // reproducible even after the creator edits their DNA.
     dnaRepository,
+    inProcessEnqueue,
   });
 
   const audienceService =
@@ -367,6 +504,54 @@ async function main(): Promise<void> {
       return document?.uid ?? null;
     },
   });
+
+  wsBroadcast = (channel, event) => {
+    ws.broadcast(channel, event);
+  };
+
+  if (firestore === null) {
+    const existingDemoJob = await renderJobRepository.get('demo-binary-search').catch(() => null);
+    if (existingDemoJob === null && inProcessEnqueue !== null) {
+      const now = new Date().toISOString();
+      await renderJobRepository.save({
+        jobId: 'demo-binary-search',
+        uid: 'local-creator',
+        queue: 'render',
+        state: 'waiting',
+        stage: 'queued',
+        progress: 0,
+        assets: [],
+        error: null,
+        attemptsMade: 0,
+        dna: DEFAULT_CREATOR_DNA,
+        payload: {
+          projectId: 'demo-project-binary-search',
+          hook: 'POV: You finally understand Binary Search after 3 days 😅',
+          script: [
+            {
+              scene: 'Hook',
+              text: 'POV: You finally understand Binary Search after 3 days 😅',
+            },
+            {
+              scene: 'Core Idea',
+              text: 'Binary search is a simple and efficient algorithm that helps us find an element in a sorted array in log n time.',
+            },
+            {
+              scene: 'CTA',
+              text: 'Save this for your next coding interview & follow for more!',
+            },
+          ],
+          cta: 'Save this for your next coding interview & follow for more!',
+          caption: 'Binary Search Made Easy ✨ Finally clicked after 3 days of practice!',
+          hashtags: ['#CSE', '#CodingLife', '#StudyWithMe', '#BinarySearch', '#StudentsLife'],
+          dnaVersion: DEFAULT_CREATOR_DNA.dnaVersion,
+        },
+        createdAt: now,
+        updatedAt: now,
+      });
+      inProcessEnqueue('demo-binary-search');
+    }
+  }
 
   // Worker progress -> Redis pub/sub -> the socket of whoever is watching.
   if (renderEventBus !== null) {

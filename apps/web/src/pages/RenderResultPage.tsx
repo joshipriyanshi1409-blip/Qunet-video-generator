@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { Card, CardContent, CardHeader } from '../components/Card';
@@ -11,6 +11,7 @@ import { useToast } from '../hooks/useToast';
 import { useLibrary } from '../hooks/useLibrary';
 import { fetchRenderJob, findMp4Asset, toRenderJobView } from '../lib/render';
 import { downloadBlob, downloadStem, downloadText, fetchAsBlob } from '../lib/download';
+import { THUMBNAILS } from '../lib/studioFixtures';
 import {
   getShareAdapter,
   shareAdapterNotice,
@@ -32,6 +33,7 @@ import { useQuery } from '@tanstack/react-query';
  */
 export function RenderResultPage() {
   const { jobId = '' } = useParams();
+  const navigate = useNavigate();
   const { push } = useToast();
   const library = useLibrary();
   const [sharing, setSharing] = useState(false);
@@ -246,12 +248,17 @@ export function RenderResultPage() {
   return (
     <>
       <PageHeader
-        title="Your video is ready"
-        description="Watch it, grab the caption, download it, or send it to your feed."
-        actions={<Badge tone="success">Completed</Badge>}
+        title="Final Content"
+        description="Your video is ready. Watch it, grab the caption, download it, or send it to your feed."
+        actions={
+          <>
+            <span className="sr-only">Your video is ready</span>
+            <Badge tone="success">✨ Optimized for your DNA</Badge>
+          </>
+        }
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
         <div>
           {mp4 === null ? (
             <EmptyState
@@ -259,11 +266,32 @@ export function RenderResultPage() {
               description="The job finished without an MP4 asset on the record. That is a pipeline gap, not something you did."
             />
           ) : (
-            <VideoPlayer
-              src={mp4.url ?? ''}
-              label={`Finished short: ${title}`}
-              captionsUrl={captions?.url}
-            />
+            <div className="space-y-3">
+              {/* Visual 9:16 Reel Preview Frame matching Screen 8 */}
+              <div className="relative overflow-hidden rounded-2xl border border-line bg-ink-900 shadow-card">
+                <img
+                  src={THUMBNAILS.reelVerticalCover}
+                  alt=""
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 size-full object-cover opacity-85"
+                />
+                <div className="relative z-10">
+                  <VideoPlayer
+                    src={mp4.url ?? ''}
+                    label={`Finished short: ${title}`}
+                    captionsUrl={captions?.url}
+                  />
+                </div>
+                <div className="pointer-events-none absolute inset-x-0 bottom-10 z-20 flex items-end justify-between bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-3 pt-10 text-white">
+                  <p className="text-body-lg font-bold drop-shadow-xs">
+                    Binary Search Made Easy ✨
+                  </p>
+                  <span className="rounded-md bg-black/60 px-2 py-0.5 text-tiny font-semibold tabular-nums">
+                    0:46
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -276,7 +304,64 @@ export function RenderResultPage() {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
+          {/* Screen 8 Summary & Quick Action Stack */}
+          <Card>
+            <CardContent className="space-y-4 pt-5">
+              <h2 className="text-title font-bold text-ink-900">{title}</h2>
+              <p className="flex flex-wrap gap-2 text-caption font-semibold text-info">
+                {(hashtags.length > 0
+                  ? hashtags
+                  : ['#CSE', '#CodingLife', '#StudyWithMe', '#BinarySearch', '#StudentsLife']
+                ).map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+              </p>
+
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => void downloadMp4()}
+                  disabled={mp4 === null}
+                  className="flex w-full items-center justify-between rounded-xl border border-line bg-surface-muted/70 px-4 py-2.5 text-body font-medium text-ink-900 transition-colors hover:bg-peach-50 disabled:opacity-40"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span aria-hidden="true">⬇️</span>
+                    <span>Download File (.MP4)</span>
+                  </span>
+                  <span aria-hidden="true" className="text-ink-300">→</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={saveToLibrary}
+                  disabled={saved === true}
+                  className="flex w-full items-center justify-between rounded-xl border border-line bg-surface-muted/70 px-4 py-2.5 text-body font-medium text-ink-900 transition-colors hover:bg-peach-50 disabled:opacity-60"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span aria-hidden="true">🔖</span>
+                    <span>Save to Ideas</span>
+                  </span>
+                  <span aria-hidden="true" className="text-ink-300">
+                    {saved === true ? '✓' : '→'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate(`/publish?jobId=${encodeURIComponent(jobId)}`)}
+                  className="flex w-full items-center justify-between rounded-xl border border-peach-200 bg-peach-50 px-4 py-2.5 text-body font-semibold text-peach-800 transition-colors hover:bg-peach-100"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span aria-hidden="true">📤</span>
+                    <span>Share / Publish to Qoneqt</span>
+                  </span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader title="Caption" description="What goes with the video when you post it." />
             <CardContent className="space-y-4">
@@ -349,6 +434,11 @@ export function RenderResultPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      <div className="mt-6 flex items-center justify-center gap-2 rounded-2xl border border-peach-200 bg-peach-50 px-4 py-3 text-caption font-medium text-peach-800">
+        <span aria-hidden="true">💡</span>
+        <span>This content is tailored to your Creator DNA and your audience&apos;s preferences.</span>
       </div>
 
       <p className="mt-6 text-caption text-ink-500">

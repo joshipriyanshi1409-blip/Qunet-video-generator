@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:4000';
 
   return {
+    base: env.VITE_BASE_PATH || '/',
     plugins: [react(), tailwindcss()],
 
     resolve: {
@@ -49,6 +50,24 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: true,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('firebase')) return 'firebase';
+              if (
+                id.includes('react') ||
+                id.includes('motion') ||
+                id.includes('@tanstack') ||
+                id.includes('zustand')
+              ) {
+                return 'vendor';
+              }
+            }
+            return undefined;
+          },
+        },
+      },
     },
 
     test: {

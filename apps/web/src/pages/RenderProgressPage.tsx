@@ -21,6 +21,18 @@ import { ApiError } from '../lib/api';
  * through it, roughly how long is left, and - when something breaks - exactly
  * what failed and what a retry will and will not redo.
  */
+const SCREEN7_CHECKLIST = [
+  { label: 'Creator DNA loaded', threshold: 5 },
+  { label: 'Trend remixed', threshold: 15 },
+  { label: 'Script generated', threshold: 25 },
+  { label: 'Audience checked', threshold: 35 },
+  { label: 'Generating scenes', threshold: 55 },
+  { label: 'Voice-over', threshold: 70 },
+  { label: 'Music', threshold: 82 },
+  { label: 'Captions', threshold: 92 },
+  { label: 'Final render', threshold: 100 },
+] as const;
+
 export function RenderProgressPage() {
   const { jobId = '' } = useParams();
   const navigate = useNavigate();
@@ -84,11 +96,15 @@ export function RenderProgressPage() {
   const mp4 = job === null ? null : findMp4Asset(job.assets);
   const failure = job?.error ?? null;
 
+  const activeChecklistIndex = SCREEN7_CHECKLIST.findIndex(
+    (step) => render.progress < step.threshold,
+  );
+
   return (
     <>
       <PageHeader
-        title="Render progress"
-        description="Runs in the background with live progress. A failed stage retries on its own and reuses every cached asset."
+        title="Creating your video..."
+        description="This may take a few minutes. We'll notify you when it's ready."
         actions={
           <Badge
             tone={render.failed === true ? 'danger' : render.finished === true ? 'success' : 'peach'}
@@ -103,6 +119,84 @@ export function RenderProgressPage() {
           </Badge>
         }
       />
+
+      {/* Screen 7: AI Video Generation Checklist + Clapperboard Illustration Card */}
+      <Card className="mb-6">
+        <CardContent className="space-y-6 pt-6">
+          <div className="flex items-center gap-4">
+            <div className="h-3 flex-1 overflow-hidden rounded-pill bg-peach-100">
+              <div
+                className="h-full rounded-pill bg-gradient-to-r from-peach-400 to-peach-600 transition-all duration-300"
+                style={{ width: `${Math.max(8, render.progress)}%` }}
+              />
+            </div>
+            <span className="text-body font-bold tabular-nums text-ink-900">
+              {render.progress}%
+            </span>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-[1.15fr_1fr]">
+            <div className="space-y-2.5">
+              {SCREEN7_CHECKLIST.map((item, idx) => {
+                const isDone =
+                  render.finished === true ||
+                  (activeChecklistIndex === -1 ? true : idx < activeChecklistIndex);
+                const isCurrent =
+                  render.finished !== true && idx === activeChecklistIndex;
+                return (
+                  <div
+                    key={item.label}
+                    className="flex items-center gap-3 text-body"
+                  >
+                    {isDone ? (
+                      <span
+                        aria-hidden="true"
+                        className="flex size-5 shrink-0 items-center justify-center rounded-pill bg-emerald-500 text-tiny font-bold text-white"
+                      >
+                        ✓
+                      </span>
+                    ) : isCurrent ? (
+                      <span
+                        aria-hidden="true"
+                        className="flex size-5 shrink-0 items-center justify-center rounded-pill border-2 border-info bg-info-soft"
+                      />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="flex size-5 shrink-0 items-center justify-center rounded-pill border border-ink-300 bg-surface"
+                      />
+                    )}
+                    <span
+                      className={
+                        isDone
+                          ? 'font-medium text-ink-900'
+                          : isCurrent
+                            ? 'font-bold text-info-strong'
+                            : 'text-ink-500'
+                      }
+                    >
+                      {item.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-line bg-surface-muted/60 p-6 text-center">
+              <div className="relative mb-4 flex size-24 items-center justify-center rounded-3xl bg-gradient-to-br from-purple-500 to-indigo-600 text-display text-white shadow-card">
+                <span aria-hidden="true">🎬</span>
+                <span aria-hidden="true" className="absolute -right-2 -top-2 text-title">✨</span>
+              </div>
+              <p className="text-body-lg font-bold text-ink-900">
+                Turning your idea into a video...
+              </p>
+              <p className="mt-1 text-caption text-ink-500">
+                Tailoring script, voice-over, captions &amp; visuals to your Creator DNA.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="mb-6">
         <CardContent className="flex flex-col items-center gap-6 pt-6 sm:flex-row sm:items-start">

@@ -18,7 +18,11 @@ import { useToast } from '../hooks/useToast';
 import { useRemixTrend, useTrendsForMe } from '../hooks/useTrends';
 import { ApiError } from '../lib/api';
 import { trackSignal } from '../lib/dnaLearning';
+import { SHOWCASE_TRENDS } from '../lib/studioFixtures';
+import { cn } from '../lib/cn';
 import { useUiStore } from '../store/useUiStore';
+
+const TREND_CATEGORIES = ['Trending Now', 'For You', 'Tech', 'Education', 'Lifestyle'] as const;
 
 /**
  * Trend Remix: pick a trending format (or bring your own idea) and get it
@@ -41,8 +45,20 @@ export function TrendRemixPage() {
    * are listed beside it so the rewrite addresses them.
    */
   const [idea, setIdea] = useState(searchParams.get('idea') ?? '');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState<(typeof TREND_CATEGORIES)[number]>('Trending Now');
   const mirrorFeedback = useUiStore((state) => state.mirrorFeedback);
   const setMirrorFeedback = useUiStore((state) => state.setMirrorFeedback);
+
+  const filteredShowcase = useMemo(() => {
+    return SHOWCASE_TRENDS.filter((item) => {
+      const matchesSearch =
+        searchQuery.trim().length === 0 ||
+        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.format.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesSearch;
+    });
+  }, [searchQuery]);
 
   const ranked = useMemo(() => trends.data?.trends ?? [], [trends.data]);
   const selectedTrend = useMemo<RankedTrend | null>(
@@ -110,9 +126,94 @@ export function TrendRemixPage() {
     <>
       <PageHeader
         title="Trend Remix"
-        description="Keep the trend's recognizable structure; swap the topic, examples and CTA so it fits your niche, tone and audience."
+        description="Turn trending topics into content that matches your style."
         actions={<Badge tone="peach">Your DNA is injected</Badge>}
       />
+
+      {/* Screen 3: Search bar + Category Pills + Visual Trend Cards Grid */}
+      <div className="mb-7 space-y-4">
+        <div className="relative flex items-center">
+          <span aria-hidden="true" className="pointer-events-none absolute left-4 text-ink-300">
+            <svg className="size-4" viewBox="0 0 24 24" fill="none">
+              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+              <path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            aria-label="Search trending topics"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search trending topics..."
+            className="h-11 w-full rounded-pill border border-line bg-surface pl-11 pr-4 text-body text-ink-900 placeholder:text-ink-300 shadow-2xs focus:border-peach-400 focus:outline-none"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {TREND_CATEGORIES.map((category) => {
+            const isActive = activeCategory === category;
+            return (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setActiveCategory(category)}
+                className={cn(
+                  'rounded-pill border px-4 py-1.5 text-caption font-semibold transition-colors duration-150',
+                  isActive
+                    ? 'border-peach-300 bg-peach-100 text-peach-800 shadow-2xs'
+                    : 'border-line bg-surface text-ink-700 hover:bg-peach-50',
+                )}
+              >
+                {category}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          {filteredShowcase.map((card) => (
+            <div
+              key={card.id}
+              className="flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-card transition-all hover:-translate-y-0.5 hover:shadow-card-hover"
+            >
+              <div className="relative h-36 w-full overflow-hidden bg-surface-muted">
+                <img
+                  src={card.thumbnail}
+                  alt=""
+                  aria-hidden="true"
+                  className="size-full object-cover"
+                />
+              </div>
+              <div className="flex flex-1 flex-col p-4">
+                <p className="line-clamp-2 text-body font-bold text-ink-900">{card.title}</p>
+                <p className="mt-2 flex items-center gap-1.5 text-tiny font-medium text-ink-500">
+                  <span aria-hidden="true">
+                    {card.reactionIcon === 'heart'
+                      ? '❤️'
+                      : card.reactionIcon === 'thumb'
+                        ? '👍'
+                        : '👁️'}
+                  </span>
+                  <span>{card.viewsLabel}</span>
+                </p>
+                <div className="mt-auto pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTrendId(card.id);
+                      setIdea('');
+                      runRemix({ trendId: card.id });
+                    }}
+                    className="w-full rounded-pill border border-peach-300 bg-peach-100 py-2 text-caption font-semibold text-peach-800 transition-colors hover:bg-peach-200"
+                  >
+                    Use Trend
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {mirrorFeedback.length > 0 ? (
         <Card className="mb-6 border-info-soft bg-info-soft" data-testid="mirror-feedback">

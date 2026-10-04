@@ -3,7 +3,7 @@
 # when node_modules is absent, `npx tsc` prints an npm error containing no
 # "error TS", so a broken package looks clean.
 set -uo pipefail
-cd /home/user/creatordna
+cd "$(dirname "${BASH_SOURCE[0]}")"
 export HOME=/home/user
 
 PKGS=(shared prompts render api worker web)

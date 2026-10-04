@@ -17,16 +17,18 @@ const iconClass = 'size-5 shrink-0';
 
 const primaryNav: NavItem[] = [
   { to: '/', label: 'Home', icon: <HomeIcon /> },
-  { to: '/create', label: 'Create', icon: <SparkIcon /> },
-  { to: '/dna', label: 'My DNA', icon: <DnaIcon /> },
   { to: '/trends/remix', label: 'Trend Remix', icon: <TrendIcon /> },
   { to: '/hooks', label: 'Hook Lab', icon: <HookIcon /> },
-  { to: '/audience', label: 'Audience', icon: <UsersIcon /> },
+  { to: '/audience', label: 'Audience Mirror', icon: <UsersIcon /> },
+  { to: '/dna', label: 'My DNA', icon: <DnaIcon /> },
+  { to: '/create', label: 'Create', icon: <IdeasIcon /> },
 ];
 
 const toolsNav: NavItem[] = [
-  { to: '/voice-coach', label: 'Voice Coach', icon: <MicIcon /> },
+  { to: '/voice-coach', label: 'Live Voice Coach', icon: <MicIcon /> },
   { to: '/library', label: 'Library', icon: <LibraryIcon /> },
+  { to: '/publish', label: 'Publish to Qoneqt', icon: <ShareIcon /> },
+  { to: '/settings', label: 'Settings', icon: <ProfileIcon /> },
 ];
 
 export function Sidebar() {
@@ -59,7 +61,7 @@ export function Sidebar() {
               transition={{ duration: motionTokens.base, ease: motionTokens.ease }}
               className="relative h-full w-[280px] overflow-y-auto border-r border-line bg-surface px-4 py-6"
             >
-              <SidebarContent onNavigate={close} showUser />
+              <SidebarContent onNavigate={close} />
             </motion.nav>
           </motion.div>
         ) : null}
@@ -76,17 +78,22 @@ export function Sidebar() {
   );
 }
 
-function SidebarContent({ onNavigate, showUser = false }: { onNavigate?: () => void; showUser?: boolean }) {
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <div className="flex h-full flex-col gap-6">
-      <NavLink to="/" onClick={onNavigate} className="flex items-center gap-2.5 rounded-md px-2 py-1">
+    <div className="flex h-full flex-col gap-5">
+      <NavLink to="/" onClick={onNavigate} className="flex items-center gap-3 rounded-lg px-2 py-1">
         <span
           aria-hidden="true"
-          className="flex size-9 items-center justify-center rounded-md bg-peach-500 text-white shadow-card"
+          className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-peach-300 via-peach-500 to-amber-500 text-white shadow-card"
         >
-          <DnaIcon />
+          <SparkBrandIcon />
         </span>
-        <span className="text-body-lg font-semibold tracking-tight text-ink-900">CreatorDNA</span>
+        <div className="min-w-0">
+          <span className="block text-body-lg font-bold tracking-tight text-ink-900">
+            CreatorDNA
+          </span>
+          <span className="block text-tiny font-medium text-info">Create. Create. Share.</span>
+        </div>
       </NavLink>
 
       <ul className="space-y-1">
@@ -97,11 +104,6 @@ function SidebarContent({ onNavigate, showUser = false }: { onNavigate?: () => v
         ))}
       </ul>
 
-      {/*
-        A named region, not a bare `<div>`: the tools group is a navigation
-        landmark with a visible heading, and `aria-labelledby` is what ties the
-        two together for a screen reader.
-      */}
       <nav aria-labelledby="sidebar-tools-heading">
         <p
           id="sidebar-tools-heading"
@@ -118,17 +120,9 @@ function SidebarContent({ onNavigate, showUser = false }: { onNavigate?: () => v
         </ul>
       </nav>
 
-      <div className="mt-auto space-y-3">
-        {showUser === true ? (
-          <div className="rounded-lg border border-line bg-surface-muted p-3">
-            <UserCard />
-          </div>
-        ) : null}
-        <div className="rounded-lg border border-line bg-surface-muted p-3">
-          <p className="text-caption font-semibold text-ink-900">CreatorDNA Studio</p>
-          <p className="mt-1 text-tiny text-ink-500">
-            Your voice, your audience, your videos - one persistent profile.
-          </p>
+      <div className="mt-auto space-y-3 pt-4">
+        <div className="rounded-xl border border-line bg-surface-muted/80 p-3">
+          <UserCard />
         </div>
       </div>
     </div>
@@ -143,9 +137,9 @@ function SidebarLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-3 rounded-md px-3 py-2 text-body font-medium transition-colors duration-150',
+          'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-body font-medium transition-all duration-150',
           isActive === true
-            ? 'bg-peach-100 text-peach-800'
+            ? 'border border-peach-200 bg-peach-100/90 font-semibold text-peach-800 shadow-2xs'
             : 'text-ink-700 hover:bg-peach-50 hover:text-ink-900',
         )
       }
@@ -159,19 +153,33 @@ function SidebarLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
   );
 }
 
-function HomeIcon() {
+function SparkBrandIcon() {
   return (
-    <svg className={iconClass} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <svg className="size-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2L14.6 9.4L22 12L14.6 14.6L12 22L9.4 14.6L2 12L9.4 9.4L12 2Z" />
     </svg>
   );
 }
 
-function SparkIcon() {
+function HomeIcon() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="M18 16.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path
+        d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IdeasIcon() {
+  return (
+    <svg className={iconClass} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="4" y="3" width="16" height="18" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
@@ -179,7 +187,12 @@ function SparkIcon() {
 function DnaIcon() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7 4c0 6 10 6 10 12M17 4c0 6-10 6-10 12M7 20c0-1.2.3-2.2.8-3M17 20c0-1.2-.3-2.2-.8-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M7 4c0 6 10 6 10 12M17 4c0 6-10 6-10 12M7 20c0-1.2.3-2.2.8-3M17 20c0-1.2-.3-2.2-.8-3"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
       <path d="M8.5 8h7M8.5 16h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
@@ -188,8 +201,13 @@ function DnaIcon() {
 function TrendIcon() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 17l5-5 3 3 6-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M15 8h4v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M12 3c2.5 3 5 5.2 5 9a5 5 0 1 1-10 0c0-2 1-3.8 2.4-5.2.4 1.4 1.3 2.2 2.6 2.2 0-2.2.5-4.2 0-6z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -198,8 +216,18 @@ function UsersIcon() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="9" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5S14 16 14.6 19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M16 5.4a3.2 3.2 0 0 1 0 5.2M17.5 14.8c2 .6 3.2 2 3.6 4.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M3.5 19c.6-3 2.8-4.5 5.5-4.5S14 16 14.6 19"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M16 5.4a3.2 3.2 0 0 1 0 5.2M17.5 14.8c2 .6 3.2 2 3.6 4.2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -208,7 +236,12 @@ function MicIcon() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect x="9" y="3" width="6" height="10" rx="3" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -216,9 +249,20 @@ function MicIcon() {
 function HookIcon() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 3v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M9 9h6l-1.2 5.5a2.6 2.6 0 0 1-3.6 0z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="M12 15v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -226,9 +270,33 @@ function HookIcon() {
 function LibraryIcon() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="4" width="5" height="16" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
-      <rect x="10" y="4" width="5" height="16" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M18.5 5.5v13M18.5 5.5l2.5 12.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M10 9l5 3-5 3V9z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg className={iconClass} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="18" cy="5" r="3" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="6" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="18" cy="19" r="3" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function ProfileIcon() {
+  return (
+    <svg className={iconClass} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M5 20c.8-3.6 3.5-5.5 7-5.5s6.2 1.9 7 5.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

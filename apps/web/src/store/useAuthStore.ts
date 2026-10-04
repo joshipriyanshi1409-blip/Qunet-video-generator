@@ -56,8 +56,13 @@ function readStoredDevUid(): string | null {
 
 function writeStoredDevUid(uid: string | null): void {
   try {
-    if (uid === null) window.localStorage.removeItem(DEV_USER_STORAGE_KEY);
-    else window.localStorage.setItem(DEV_USER_STORAGE_KEY, uid);
+    if (uid === null) {
+      window.localStorage.removeItem(DEV_USER_STORAGE_KEY);
+      window.sessionStorage.setItem('creatordna.signed-out', '1');
+    } else {
+      window.localStorage.setItem(DEV_USER_STORAGE_KEY, uid);
+      window.sessionStorage.removeItem('creatordna.signed-out');
+    }
   } catch {
     // Private browsing / storage disabled: the session simply does not persist.
   }

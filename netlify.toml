@@ -1,0 +1,12 @@
+[build]
+  command = "corepack enable && pnpm --filter @creatordna/shared run build && pnpm --filter @creatordna/prompts run build && pnpm --filter @creatordna/web run build"
+  publish = "apps/web/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  PNPM_FLAGS = "--frozen-lockfile"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

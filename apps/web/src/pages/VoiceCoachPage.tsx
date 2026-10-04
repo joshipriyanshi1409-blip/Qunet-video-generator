@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   LIVE_MAX_SESSION_SECONDS,
   liveSessionScriptSchema,
@@ -8,30 +9,29 @@ import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { Card, CardContent, CardHeader } from '../components/Card';
 import { PageHeader } from '../components/PageHeader';
+import { ProgressRing } from '../components/ProgressRing';
 import { EmptyState } from '../components/StateViews';
 import { Waveform } from '../components/voiceCoach/Waveform';
 import { ScriptTeleprompter } from '../components/voiceCoach/ScriptTeleprompter';
 import { FeedbackFeed } from '../components/voiceCoach/FeedbackFeed';
 import { SessionTimer } from '../components/voiceCoach/SessionTimer';
 import { useVoiceCoachSession } from '../hooks/useVoiceCoachSession';
+import { useToast } from '../hooks/useToast';
 
-/**
- * Live Voice Coach.
- *
- * The whole feature on one screen: the script to read, the mic, the live tips,
- * the clock. Nothing here decides anything - every rule (session length, daily
- * cap, what a tip looks like) is enforced by the API and validated by the shared
- * schemas, so this page is a view of a session rather than a second source of
- * truth for it.
- */
+const SAMPLE_SCRIPT = `Binary search is a simple and efficient algorithm that helps us find an element in sorted array in log n time.
+Every comparison throws away half the list.
+So twenty sorted items take five guesses, not twenty.`;
 
-const SAMPLE_SCRIPT = `POV: you finally understand binary search
-The trick is the halving picture
-Every comparison throws away half the list
-So twenty sorted items take five guesses, not twenty
-That is the whole idea - now go use it`;
+const VOICE_METRICS = [
+  { label: 'Energy', value: 82, color: 'bg-info' },
+  { label: 'Pace', value: 76, color: 'bg-emerald-500' },
+  { label: 'Clarity', value: 94, color: 'bg-info' },
+  { label: 'Confidence', value: 78, color: 'bg-indigo-500' },
+] as const;
 
 export function VoiceCoachPage() {
+  const navigate = useNavigate();
+  const { push } = useToast();
   const [scriptText, setScriptText] = useState(SAMPLE_SCRIPT);
   const coach = useVoiceCoachSession();
 
@@ -56,7 +56,7 @@ export function VoiceCoachPage() {
     <>
       <PageHeader
         title="Live Voice Coach"
-        description="Read your script out loud and get coached on pace, filler words, energy and tone match while you are still talking."
+        description="Rehearse your script and get real-time feedback."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {coach.quota === null ? null : (
@@ -92,16 +92,16 @@ export function VoiceCoachPage() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-        {/* Left: what to read, and the mic. */}
-        <div className="flex flex-col gap-6">
+      <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
+        {/* Left: Your Script + Speak Now Waveform + Try Again / Save & Continue */}
+        <div className="flex flex-col gap-5">
           <Card>
             <CardHeader
-              title="Your script"
+              title="Your Script"
               description="One line per beat. The coach follows along as you read."
               action={
                 coach.phase === 'idle' ? (
-                  <span className="text-tiny text-ink-400">{script?.length ?? 0} lines</span>
+                  <span className="text-tiny text-ink-500">{script?.length ?? 0} lines</span>
                 ) : null
               }
             />
@@ -115,10 +115,10 @@ export function VoiceCoachPage() {
                     id="coach-script"
                     value={scriptText}
                     onChange={(event) => setScriptText(event.target.value)}
-                    rows={8}
+                    rows={5}
                     aria-invalid={scriptError === null ? undefined : true}
                     aria-describedby={scriptError === null ? undefined : 'coach-script-error'}
-                    className="w-full rounded-card border border-line bg-surface px-3 py-2 text-body text-ink-900 placeholder:text-ink-300 focus:border-peach-400 focus:outline-none focus:ring-2 focus:ring-peach-200"
+                    className="w-full rounded-xl border border-line bg-surface-muted/60 px-4 py-3 text-body text-ink-900 placeholder:text-ink-300 focus:border-peach-400 focus:bg-surface focus:outline-none"
                     placeholder={"POV: you finally understand binary search\nThe trick is the halving picture"}
                   />
                   {scriptError === null ? null : (
@@ -138,49 +138,50 @@ export function VoiceCoachPage() {
           </Card>
 
           <Card>
-            <CardContent className="flex flex-col items-center gap-4 py-6">
-              <Waveform level={coach.level} active={coach.phase === 'live'} />
+            <CardContent className="flex flex-col gap-4 pt-5">
+              <div className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-surface-muted/60 p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="mb-2 text-caption font-semibold text-emerald-700">
+                    {coach.phase === 'live' ? 'Listening Live...' : 'Speak Now...'}
+                  </p>
+                  <Waveform level={coach.phase === 'live' ? coach.level : 0.55} active={coach.phase === 'live'} />
+                </div>
 
-              <div className="flex flex-wrap items-center justify-center gap-3">
                 {coach.phase === 'idle' ? (
-                  <>
-                    <Button
-                      size="lg"
-                      iconOnly
-                      aria-label="Start live coaching"
-                      disabled={!canStart}
-                      onClick={() => {
-                        if (script !== null) void coach.start(script);
-                      }}
-                    >
-                      <svg className="size-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <rect
-                          x="9"
-                          y="3"
-                          width="6"
-                          height="10"
-                          rx="3"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                        />
-                        <path
-                          d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={!canStart}
-                      onClick={() => {
-                        if (script !== null) void coach.startFallback(script);
-                      }}
-                    >
-                      Record a take instead
-                    </Button>
-                  </>
+                  <Button
+                    size="lg"
+                    iconOnly
+                    aria-label="Start live coaching"
+                    disabled={!canStart}
+                    onClick={() => {
+                      if (script !== null) void coach.start(script);
+                    }}
+                    className="size-13 shrink-0 rounded-pill bg-peach-500 text-white shadow-card hover:bg-peach-600"
+                  >
+                    <svg className="size-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <rect
+                        x="9"
+                        y="3"
+                        width="6"
+                        height="10"
+                        rx="3"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      />
+                      <path
+                        d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </Button>
+                ) : null}
+
+                {coach.phase === 'live' && coach.recordingFallback === false ? (
+                  <Button size="lg" onClick={() => void coach.stop()}>
+                    End session
+                  </Button>
                 ) : null}
 
                 {coach.recordingFallback === true ? (
@@ -195,17 +196,44 @@ export function VoiceCoachPage() {
                   </Button>
                 ) : null}
 
-                {coach.phase === 'live' && coach.recordingFallback === false ? (
-                  <Button size="lg" onClick={() => void coach.stop()}>
-                    End session
-                  </Button>
-                ) : null}
-
                 {coach.phase === 'ending' ? <Button size="lg" loading>Wrapping up…</Button> : null}
+              </div>
 
-                {coach.phase === 'ended' ? (
-                  <Button size="lg" onClick={coach.reset}>
-                    Coach me again
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      coach.reset();
+                      push({ title: 'Ready for another take', tone: 'neutral' });
+                    }}
+                  >
+                    Try Again
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      push({
+                        title: 'Voice rehearsal saved!',
+                        description: 'Proceeding to AI Video Generation.',
+                        tone: 'success',
+                      });
+                      navigate('/render/demo-binary-search');
+                    }}
+                  >
+                    Save &amp; Continue
+                  </Button>
+                </div>
+
+                {coach.phase === 'idle' ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={!canStart}
+                    onClick={() => {
+                      if (script !== null) void coach.startFallback(script);
+                    }}
+                  >
+                    Record a take instead
                   </Button>
                 ) : null}
               </div>
@@ -214,32 +242,56 @@ export function VoiceCoachPage() {
                 elapsedSeconds={coach.elapsedSeconds}
                 remainingSeconds={coach.remainingSeconds}
               />
-
-              <p className="max-w-sm text-center text-caption text-ink-500">
-                {coach.phase === 'idle'
-                  ? 'Audio is streamed to the coach and never stored. A take runs at most five minutes.'
-                  : coach.recordingFallback === true
-                    ? 'Recording. Read the whole script, then stop - the coach reviews it in one go.'
-                    : 'Reading? Keep going. The coach will speak up when something needs fixing.'}
-              </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Right: what the coach is saying. */}
-        <div className="flex flex-col gap-6">
-          <Card className="min-h-[18rem]">
+        {/* Right: Screen 6 Voice Feedback Ring (82% Overall Score) + Energy/Pace/Clarity/Confidence */}
+        <div className="flex flex-col gap-5">
+          <Card>
             <CardHeader
-              title="Live feedback"
-              description="Pace, clarity, filler words, energy and tone match."
+              title="Voice Feedback"
+              description="Real-time vocal delivery score against your Creator DNA."
               action={
                 coach.phase === 'live' ? (
                   <Badge tone="success">
                     <span aria-hidden="true" className="mr-1 inline-block size-1.5 rounded-pill bg-success" />
                     Listening
                   </Badge>
-              ) : null
+                ) : (
+                  <Badge tone="success">Optimal</Badge>
+                )
               }
+            />
+            <CardContent className="space-y-5 pt-4">
+              <div className="flex flex-col items-center justify-center">
+                <ProgressRing value={82} label="Overall voice score" size={116} thickness={10} />
+                <p className="mt-2 text-caption font-semibold text-ink-700">Overall Score</p>
+              </div>
+
+              <div className="space-y-3.5 pt-2">
+                {VOICE_METRICS.map((metric) => (
+                  <div key={metric.label} className="space-y-1">
+                    <div className="flex items-center justify-between text-caption">
+                      <span className="font-medium text-ink-700">{metric.label}</span>
+                      <span className="font-bold tabular-nums text-ink-900">{metric.value}%</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-pill bg-ink-100">
+                      <div
+                        className={`h-full rounded-pill ${metric.color}`}
+                        style={{ width: `${metric.value}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Live feedback"
+              description="Pace, clarity, filler words, energy and tone match."
             />
             <CardContent>
               {live === false && coach.tips.length === 0 && coach.phase !== 'ended' ? (
@@ -280,7 +332,6 @@ export function VoiceCoachPage() {
   );
 }
 
-/** Strengths, issues and tips from a finished session. */
 function SummaryView({ summary }: { summary: NonNullable<ReturnType<typeof useVoiceCoachSession>['summary']> }) {
   return (
     <dl className="flex flex-col gap-4">

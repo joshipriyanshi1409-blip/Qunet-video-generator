@@ -55,10 +55,15 @@ export interface RenderJobServiceDeps {
    * weeks from now produces the same video it would have produced today.
    */
   dnaRepository?: { get(uid: string): Promise<CreatorDna | null> } | null;
+  /**
+   * Optional in-process fallback runner used when Redis/BullMQ is disabled in
+   * local development, so video renders still execute through the pipeline.
+   */
+  inProcessEnqueue?: ((jobId: string) => void) | null;
 }
 
 export function createRenderJobService(deps: RenderJobServiceDeps): RenderJobService {
-  const { queues, repository, logger, events, dnaRepository } = deps;
+  const { queues, repository, logger, events, dnaRepository, inProcessEnqueue } = deps;
 
   function requireQueues(): QueueRegistry {
     if (queues === null) {
@@ -84,12 +89,22 @@ export function createRenderJobService(deps: RenderJobServiceDeps): RenderJobSer
 
   return {
     async create(payload, uid) {
-      const registry = requireQueues();
       const data = renderJobDataSchema.parse({ ...payload, uid });
 
-      const job = await registry.render.add(JOB_NAMES.renderVideo, data);
-      const jobId = String(job.id);
-      const state = await job.getState();
+      let jobId: string;
+      let state: RenderJob['state'];
+
+      if (queues !== null) {
+        const job = await queues.render.add(JOB_NAMES.renderVideo, data);
+        jobId = String(job.id);
+        state = await job.getState();
+      } else if (inProcessEnqueue != null) {
+        jobId = `job_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+        state = 'waiting';
+      } else {
+        requireQueues();
+        throw new ServiceUnavailableError('service_unavailable', 'Job queue unavailable.');
+      }
 
       // Snapshot the profile the script was written against. A failure to read
       // it must not lose the render the creator already paid for, so a store
@@ -121,6 +136,10 @@ export function createRenderJobService(deps: RenderJobServiceDeps): RenderJobSer
           createdAt: new Date().toISOString(),
         }),
       );
+
+      if (queues === null && inProcessEnqueue != null) {
+        inProcessEnqueue(jobId);
+      }
 
       logger.info(
         { jobId, uid, projectId: data.projectId, state, dnaVersion: dna?.dnaVersion ?? null },
@@ -198,7 +217,9 @@ export function createRenderJobService(deps: RenderJobServiceDeps): RenderJobSer
       if (document === null) throw new NotFoundError(`Job "${jobId}" not found.`);
       if (document.uid !== uid) throw new NotFoundError(`Job "${jobId}" not found.`);
 
-      const registry = requireQueues();
+      if (queues === null && inProcessEnqueue == null) {
+        requireQueues();
+      }
 
       // A retry re-runs the stage that failed. Anything earlier already has an
       // asset on the job, and re-running it would spend the creator's money
@@ -212,14 +233,13 @@ export function createRenderJobService(deps: RenderJobServiceDeps): RenderJobSer
         );
       }
 
-      // The old queue entry has to go first: BullMQ will not re-add a job under
-      // a job id that still exists, so a retry would otherwise silently do
-      // nothing while the API reported success.
-      const previous = await registry.render.getJob(jobId);
-      if (previous !== undefined) await previous.remove().catch(() => undefined);
+      if (queues !== null) {
+        const previous = await queues.render.getJob(jobId);
+        if (previous !== undefined) await previous.remove().catch(() => undefined);
 
-      const data = renderJobDataSchema.parse({ ...document.payload, uid });
-      await registry.render.add(JOB_NAMES.renderVideo, data, { jobId });
+        const data = renderJobDataSchema.parse({ ...document.payload, uid });
+        await queues.render.add(JOB_NAMES.renderVideo, data, { jobId });
+      }
 
       const updated = await commit(
         renderJobSchema.parse({
@@ -231,6 +251,10 @@ export function createRenderJobService(deps: RenderJobServiceDeps): RenderJobSer
           attemptsMade: document.attemptsMade + 1,
         }),
       );
+
+      if (queues === null && inProcessEnqueue != null) {
+        inProcessEnqueue(jobId);
+      }
 
       logger.info(
         {

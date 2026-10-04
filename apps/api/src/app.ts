@@ -214,7 +214,8 @@ function ownRenderAsset(req: Request, _res: Response, next: NextFunction): void 
   }
 
   const relative = req.path.replace(/^\/+/, '');
-  const owner = relative.split('/')[0] ?? '';
+  const segments = relative.split('/');
+  const owner = segments[0] === 'renders' ? (segments[1] ?? '') : (segments[0] ?? '');
   if (owner !== uid) {
     // 404 rather than 403: an asset that is not yours does not exist as far as
     // you are concerned, and confirming it does leaks its job id.
