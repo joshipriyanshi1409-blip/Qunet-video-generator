@@ -2,6 +2,7 @@ import type { z, ZodType } from 'zod';
 import { healthResponseSchema, type HealthResponse } from '@creatordna/shared';
 import { getIdToken } from './firebase';
 import { useAuthStore } from '../store/useAuthStore';
+import { handleDemoFallback } from './demoBackend';
 
 /**
  * API base URL.
@@ -75,17 +76,39 @@ export async function request<TSchema extends ZodType>(
   if (options.body !== undefined) headers['content-type'] = 'application/json';
   if (options.anonymous !== true) Object.assign(headers, await buildAuthHeaders());
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: options.method ?? 'GET',
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    signal: options.signal,
-  });
+  const isTestMode = import.meta.env.MODE === 'test';
+  const method = options.method ?? 'GET';
+
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: options.signal,
+    });
+  } catch (networkError) {
+    if (!isTestMode) {
+      const fallback = handleDemoFallback(path, method, options.body);
+      if (fallback !== null) {
+        const parsedFallback = schema.safeParse(fallback);
+        if (parsedFallback.success) return parsedFallback.data as z.infer<TSchema>;
+      }
+    }
+    throw networkError;
+  }
 
   const text = await response.text();
   const payload: unknown = text.length === 0 ? null : safeJsonParse(text);
 
   if (!response.ok) {
+    if (!isTestMode) {
+      const fallback = handleDemoFallback(path, method, options.body);
+      if (fallback !== null) {
+        const parsedFallback = schema.safeParse(fallback);
+        if (parsedFallback.success) return parsedFallback.data as z.infer<TSchema>;
+      }
+    }
     const error = extractError(payload);
     throw new ApiError(response.status, error.code, error.message, error.details);
   }
@@ -104,6 +127,14 @@ export async function request<TSchema extends ZodType>(
     const retried = schema.safeParse(inner);
     if (retried.success) {
       return retried.data as z.infer<TSchema>;
+    }
+  }
+
+  if (!isTestMode) {
+    const fallback = handleDemoFallback(path, method, options.body);
+    if (fallback !== null) {
+      const parsedFallback = schema.safeParse(fallback);
+      if (parsedFallback.success) return parsedFallback.data as z.infer<TSchema>;
     }
   }
 

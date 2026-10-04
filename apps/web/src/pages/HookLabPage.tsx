@@ -10,6 +10,7 @@ import { ErrorState, LoadingState } from '../components/StateViews';
 import { useToast } from '../hooks/useToast';
 import { useHooks } from '../hooks/useTrends';
 import { trackSignal } from '../lib/dnaLearning';
+import { SUGGESTED_HOOKS_SHOWCASE } from '../lib/studioFixtures';
 import { useUiStore } from '../store/useUiStore';
 
 /**
@@ -105,7 +106,7 @@ export function HookLabPage() {
     <>
       <PageHeader
         title="Hook Lab"
-        description="Six openings for one idea, each in a different style. Pick one, edit it, or ask for a single style again."
+        description="Create catchy hooks that get attention."
         actions={<Badge tone="peach">Your DNA is injected</Badge>}
       />
 
@@ -116,31 +117,72 @@ export function HookLabPage() {
             <label htmlFor="hook-idea" className="block text-caption font-medium text-ink-900">
               Your idea
             </label>
-            <textarea
-              id="hook-idea"
-              rows={3}
-              value={idea}
-              onChange={(event) => setIdea(event.target.value)}
-              placeholder="e.g. Explain binary search to someone who has never coded before"
-              className="w-full resize-y rounded-lg border border-line bg-surface-muted px-4 py-3 text-body text-ink-900 placeholder:text-ink-300 focus:bg-surface"
-            />
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="submit"
-                disabled={idea.trim().length === 0}
-                loading={hooks.isPending === true && regeneratingStyle === null}
-              >
-                {list.length === 0 ? 'Write hooks' : 'Rewrite all styles'}
-              </Button>
-              {selectedId === null ? null : (
-                <Button variant="secondary" onClick={useSelected}>
-                  Use this hook
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              <div className="relative flex-1">
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3.5 top-3.5 text-ink-300"
+                >
+                  <svg className="size-4" viewBox="0 0 24 24" fill="none">
+                    <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+                    <path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </span>
+                <textarea
+                  id="hook-idea"
+                  rows={2}
+                  value={idea}
+                  onChange={(event) => setIdea(event.target.value)}
+                  placeholder="Binary search"
+                  className="w-full resize-y rounded-xl border border-line bg-surface-muted py-2.5 pl-10 pr-4 text-body text-ink-900 placeholder:text-ink-300 focus:bg-surface"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="submit"
+                  disabled={idea.trim().length === 0}
+                  loading={hooks.isPending === true && regeneratingStyle === null}
+                >
+                  {list.length === 0 ? 'Write hooks' : 'Rewrite all styles'}
                 </Button>
-              )}
+                {selectedId === null ? null : (
+                  <Button variant="secondary" onClick={useSelected}>
+                    Use this hook
+                  </Button>
+                )}
+              </div>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      {/* Screen 4: Suggested Hooks Showcase */}
+      <section aria-labelledby="suggested-hooks-heading" className="mb-6">
+        <h2 id="suggested-hooks-heading" className="mb-3 text-body-lg font-bold text-ink-900">
+          Suggested Hooks
+        </h2>
+        <div className="space-y-2.5">
+          {SUGGESTED_HOOKS_SHOWCASE.map((itemText) => (
+            <div
+              key={itemText}
+              className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-surface px-4 py-3.5 shadow-card transition-colors hover:border-peach-300"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setIdea(itemText);
+                  setDraftIdea(itemText);
+                  push({ title: 'Hook selected', description: 'Ready to customize or use in Create.', tone: 'success' });
+                }}
+                className="min-w-0 flex-1 text-left text-body font-medium text-ink-900 hover:text-peach-800"
+              >
+                {itemText}
+              </button>
+              <CopyButton value={itemText} label={`Copy suggested hook: ${itemText}`} />
+            </div>
+          ))}
+        </div>
+      </section>
 
       {hooks.isPending === true ? (
         <Card>

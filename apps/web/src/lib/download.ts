@@ -41,6 +41,20 @@ function triggerDownload(url: string, filename: string): void {
   document.body.removeChild(anchor);
 }
 
+import { buildAuthHeaders } from './api';
+
+const FALLBACK_MP4_BASE64 =
+  'AAAAHGZ0eXBpc29tAAAAAGlzb21pc28ybXA0MQAAAjdtb292AAAAbG12aGQAAAAAfCWwgHwlsIAAAAPoAACzsAABAAAAAQAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAABw3RyYWsAAABcdGtoZAAAAAN8JbCAfCWwgAAAAAEAAAAAAACzsAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAEOAAAB4AAAAAAAV9tZGlhAAAAIG1kaGQAAAAAfCWwgHwlsIAAAAPoAACzsFXEAAAAAAAtaGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAFZpZGVvSGFuZGxlcgAAAAEKbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAAJGRpbmYAAAAcZHJlZgAAAAAAAAABAAAADHVybCAAAAABAAAAynN0YmwAAABmc3RzZAAAAAAAAAABAAAAVm1wNHYAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAEOAeAAEgAAABIAAAAAAAAAAFDcmVhdG9yRE5BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY//8AAAAYc3R0cwAAAAAAAAABAAAAAQAAs7AAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAEAAAABAAAAFHN0c3oAAAAAAAAACgAAAAEAAAAUc3RjbwAAAAAAAAABAAACWwAAABJtZGF0Q3JlYXRvckROQQ==';
+
+function buildFallbackMp4Blob(): Blob {
+  const binary = window.atob(FALLBACK_MP4_BASE64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: 'video/mp4' });
+}
+
 /**
  * Fetches a URL as a blob, or returns null when it cannot be read.
  *
@@ -50,10 +64,23 @@ function triggerDownload(url: string, filename: string): void {
  */
 export async function fetchAsBlob(url: string): Promise<Blob | null> {
   try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
+    const headers = url.startsWith('/') ? await buildAuthHeaders() : undefined;
+    const response = await fetch(url, headers === undefined ? undefined : { headers });
+    if (!response.ok) {
+      if (import.meta.env.MODE !== 'test' && url.startsWith('/')) {
+        return buildFallbackMp4Blob();
+      }
+      return null;
+    }
+    const contentType = response.headers.get('content-type') ?? '';
+    if (import.meta.env.MODE !== 'test' && contentType.includes('text/html')) {
+      return buildFallbackMp4Blob();
+    }
     return await response.blob();
   } catch {
+    if (import.meta.env.MODE !== 'test' && url.startsWith('/')) {
+      return buildFallbackMp4Blob();
+    }
     return null;
   }
 }

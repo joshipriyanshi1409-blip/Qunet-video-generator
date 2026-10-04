@@ -15,7 +15,43 @@ import { useApproveProject, useImproveCopy, useMirrorContent } from '../hooks/us
 import { useToast } from '../hooks/useToast';
 import { ApiError } from '../lib/api';
 import { trackSignal } from '../lib/dnaLearning';
+import { PERSONA_AVATARS } from '../lib/studioFixtures';
 import { useUiStore } from '../store/useUiStore';
+
+const SHOWCASE_PERSONAS = [
+  {
+    name: 'Students (18–24)',
+    subtitle: 'Your core audience',
+    avatar: PERSONA_AVATARS.students,
+    badgeLabel: 'High',
+    badgeIcon: '❤️',
+    badgeClass: 'bg-danger-soft text-danger-strong border-danger/20',
+  },
+  {
+    name: 'Beginner Coders',
+    subtitle: 'Interested & engaged',
+    avatar: PERSONA_AVATARS.beginners,
+    badgeLabel: 'High',
+    badgeIcon: '❤️',
+    badgeClass: 'bg-danger-soft text-danger-strong border-danger/20',
+  },
+  {
+    name: 'Working Developers',
+    subtitle: 'Somewhat interested',
+    avatar: PERSONA_AVATARS.developers,
+    badgeLabel: 'Medium',
+    badgeIcon: '👍',
+    badgeClass: 'bg-info-soft text-info-strong border-info/20',
+  },
+  {
+    name: 'Tech Enthusiasts',
+    subtitle: 'Niche audience',
+    avatar: PERSONA_AVATARS.enthusiasts,
+    badgeLabel: 'Low',
+    badgeIcon: '😐',
+    badgeClass: 'bg-warning-soft text-warning-strong border-warning/20',
+  },
+] as const;
 
 /**
  * Audience Mirror + the approval gate.
@@ -277,10 +313,66 @@ export function AudiencePage() {
   return (
     <>
       <PageHeader
-        title="Audience Mirror"
-        description="Before you publish: how each segment is likely to react, why, and what to change."
+        title="How might your audience react?"
+        description="AI analyzes your content and predicts how different types of your audience might respond."
         actions={<Badge tone="peach">Your DNA is injected</Badge>}
       />
+
+      {/* Screen 5: Audience Persona Reaction Cards + AI Insight Box */}
+      <section aria-label="Audience reaction overview" className="mb-7 space-y-3">
+        {SHOWCASE_PERSONAS.map((persona) => (
+          <div
+            key={persona.name}
+            className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-surface px-4 py-3.5 shadow-card"
+          >
+            <div className="flex min-w-0 items-center gap-3.5">
+              <img
+                src={persona.avatar}
+                alt=""
+                aria-hidden="true"
+                className="size-11 shrink-0 rounded-pill object-cover"
+              />
+              <div className="min-w-0">
+                <p className="truncate text-body font-bold text-ink-900">{persona.name}</p>
+                <p className="truncate text-caption text-ink-500">{persona.subtitle}</p>
+              </div>
+            </div>
+
+            <span
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-pill border px-3.5 py-1 text-caption font-semibold ${persona.badgeClass}`}
+            >
+              <span aria-hidden="true">{persona.badgeIcon}</span>
+              <span>{persona.badgeLabel}</span>
+            </span>
+          </div>
+        ))}
+
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-5 py-4 text-ink-900 shadow-2xs">
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-body-lg text-emerald-800"
+            >
+              💡
+            </span>
+            <div>
+              <p className="text-body font-bold text-emerald-950">AI Insight</p>
+              <p className="mt-0.5 text-caption text-emerald-900">
+                Your audience loves practical examples and relatable student experiences. The topic
+                is highly relevant to your core audience!
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Continue to Voice Coach"
+            onClick={() => navigate('/voice-coach')}
+            className="flex size-9 shrink-0 items-center justify-center rounded-pill bg-emerald-600/15 text-emerald-900 transition-colors hover:bg-emerald-600/25"
+          >
+            →
+          </button>
+        </div>
+      </section>
 
       <Card className="mb-6">
         <CardHeader

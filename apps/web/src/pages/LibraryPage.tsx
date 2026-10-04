@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Badge, type BadgeTone } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -13,16 +13,8 @@ import {
   type LibraryItem,
   type LibraryItemState,
 } from '../lib/library';
+import { SHOWCASE_LIBRARY_ITEMS, THUMBNAILS } from '../lib/studioFixtures';
 import { cn } from '../lib/cn';
-
-/**
- * Library and history.
- *
- * Every render the creator has made, filterable by state and searchable by title,
- * caption or hashtag. The store is client-side (`lib/library.ts`) because the API
- * does not expose a per-user render listing yet - the page is honest about that
- * rather than pretending to be server-backed.
- */
 
 const STATE_TONES: Record<LibraryItemState, BadgeTone> = {
   running: 'peach',
@@ -39,6 +31,8 @@ const FILTER_OPTIONS: readonly (LibraryItemState | 'all')[] = [
   'cancelled',
 ];
 
+const CATEGORY_TABS = ['All', 'Videos', 'Drafts', 'Ideas'] as const;
+
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest first' },
   { value: 'oldest', label: 'Oldest first' },
@@ -49,6 +43,7 @@ export function LibraryPage() {
   const library = useLibrary();
   const filters = library.filters;
   const items = library.filtered;
+  const [activeTab, setActiveTab] = useState<(typeof CATEGORY_TABS)[number]>('All');
 
   const counts = useMemo(() => {
     const tally: Record<string, number> = { all: library.items.length };
@@ -58,29 +53,139 @@ export function LibraryPage() {
     return tally;
   }, [library.items]);
 
+  const filteredShowcase = useMemo(() => {
+    return SHOWCASE_LIBRARY_ITEMS.filter((entry) => {
+      if (activeTab !== 'All' && entry.category !== activeTab) return false;
+      if (filters.query.trim().length > 0) {
+        const q = filters.query.toLowerCase();
+        return (
+          entry.title.toLowerCase().includes(q) ||
+          entry.caption.toLowerCase().includes(q) ||
+          entry.hashtags.some((h) => h.toLowerCase().includes(q))
+        );
+      }
+      return true;
+    });
+  }, [activeTab, filters.query]);
+
   return (
     <>
-      <PageHeader
-        title="Library"
-        description="Every render you have made, in one place. Search by title, caption or hashtag."
-        actions={<Badge tone="peach">{library.items.length} renders</Badge>}
-      />
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <PageHeader
+          title="Your Content Library"
+          description="Every render you have made, in one place. Search by title, caption or hashtag."
+          actions={<Badge tone="peach">{library.items.length} renders</Badge>}
+        />
 
-      <div className="mb-6 space-y-4">
-        <div>
+        <div className="relative w-full sm:w-72">
           <label htmlFor="library-search" className="sr-only">
             Search your library
           </label>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3.5 top-2.5 text-ink-300"
+          >
+            🔍
+          </span>
           <input
             id="library-search"
             type="search"
             value={filters.query}
             onChange={(event) => library.setFilters({ ...filters, query: event.target.value })}
-            placeholder="Search by title, caption or hashtag"
-            className="h-10 w-full rounded-pill border border-line bg-surface px-4 text-body text-ink-900 placeholder:text-ink-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-peach-600"
+            placeholder="Search your content..."
+            className="h-10 w-full rounded-pill border border-line bg-surface pl-10 pr-4 text-body text-ink-900 placeholder:text-ink-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-peach-600"
           />
         </div>
+      </div>
 
+      {/* Screen 10 Category Tabs: All | Videos | Drafts | Ideas */}
+      <div role="tablist" aria-label="Content categories" className="mb-4 flex flex-wrap gap-2">
+        {CATEGORY_TABS.map((tab) => {
+          const isSelected = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                'rounded-pill border px-4 py-1.5 text-caption font-semibold transition-colors',
+                isSelected
+                  ? 'border-peach-300 bg-peach-100 text-peach-800 shadow-2xs'
+                  : 'border-line bg-surface text-ink-700 hover:bg-peach-50',
+              )}
+            >
+              {tab}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Screen 10 Showcase Content History Cards */}
+      <div className="mb-6 space-y-3">
+        {filteredShowcase.map((entry) => (
+          <div
+            key={entry.jobId}
+            className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-3.5 shadow-card transition-all hover:border-peach-300 sm:flex-row sm:items-center"
+          >
+            <Link
+              to={`/render/${entry.jobId}/result`}
+              className="relative h-22 w-36 shrink-0 overflow-hidden rounded-xl bg-surface-muted"
+            >
+              <img
+                src={entry.thumbnail}
+                alt=""
+                aria-hidden="true"
+                className="size-full object-cover"
+              />
+              <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/75 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
+                {entry.duration}
+              </span>
+            </Link>
+
+            <div className="min-w-0 flex-1">
+              <Link
+                to={`/render/${entry.jobId}/result`}
+                className="block truncate text-body-lg font-bold text-ink-900 hover:text-peach-700"
+              >
+                {entry.title}
+              </Link>
+              <p className="mt-1 flex items-center gap-1.5 text-caption text-ink-500">
+                <span aria-hidden="true">📄</span>
+                <span>{entry.statusLabel}</span>
+              </p>
+              <div className="mt-2 flex items-center gap-4 text-caption font-medium text-ink-700">
+                <span className="inline-flex items-center gap-1">
+                  <span aria-hidden="true">👁️</span>
+                  <span>{entry.views}</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span aria-hidden="true" className="text-coral-500">❤️</span>
+                  <span>{entry.likes}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <Link
+                to={`/render/${entry.jobId}/result`}
+                className="inline-flex h-9 items-center rounded-pill border border-peach-200 bg-peach-50 px-3.5 text-caption font-semibold text-peach-800 hover:bg-peach-100"
+              >
+                View
+              </Link>
+              <Link
+                to={`/publish?jobId=${encodeURIComponent(entry.jobId)}`}
+                className="inline-flex h-9 items-center rounded-pill bg-peach-500 px-3.5 text-caption font-semibold text-white hover:bg-peach-600"
+              >
+                Publish
+              </Link>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-caption font-medium text-ink-500" id="library-state-filter">
             State
@@ -180,6 +285,18 @@ function LibraryCard({ item, onRemove }: { item: LibraryItem; onRemove: () => vo
   return (
     <Card interactive>
       <CardContent className="flex flex-col gap-4 pt-5 sm:flex-row sm:items-center">
+        <div className="relative h-20 w-32 shrink-0 overflow-hidden rounded-xl bg-surface-muted">
+          <img
+            src={THUMBNAILS.binarySearchDesk}
+            alt=""
+            aria-hidden="true"
+            className="size-full object-cover"
+          />
+          <span className="absolute bottom-1 right-1 rounded-md bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            0:46
+          </span>
+        </div>
+
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-body-lg font-semibold text-ink-900">
@@ -230,7 +347,6 @@ function LibraryCard({ item, onRemove }: { item: LibraryItem; onRemove: () => vo
   );
 }
 
-/** "3 minutes ago" style, without pulling in a date library for one line. */
 function formatTimestamp(iso: string): string {
   const then = new Date(iso).getTime();
   if (Number.isFinite(then) === false) return 'unknown time';

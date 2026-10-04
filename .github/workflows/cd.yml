@@ -227,7 +227,10 @@ jobs:
           # this would put a second origin in the browser's CORS set for no
           # reason. See `infra/firebase/firebase.json`.
           VITE_API_URL: ''
-        run: pnpm --filter @creatordna/web build
+        run: |
+          pnpm --filter @creatordna/shared build
+          pnpm --filter @creatordna/prompts build
+          pnpm --filter @creatordna/web build
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
