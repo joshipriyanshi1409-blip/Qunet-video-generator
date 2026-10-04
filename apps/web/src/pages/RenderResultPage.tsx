@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from '../components/StateViews';
 import { useToast } from '../hooks/useToast';
 import { useLibrary } from '../hooks/useLibrary';
 import { fetchRenderJob, findMp4Asset, toRenderJobView } from '../lib/render';
+import { demoPosterUrl } from '../lib/demoAssets';
 import { downloadBlob, downloadStem, downloadText, fetchAsBlob } from '../lib/download';
 import { THUMBNAILS } from '../lib/studioFixtures';
 import {
@@ -279,6 +280,7 @@ export function RenderResultPage() {
                   <VideoPlayer
                     src={mp4.url ?? ''}
                     label={`Finished short: ${title}`}
+                    poster={demoPosterUrl()}
                     captionsUrl={captions?.url}
                   />
                 </div>

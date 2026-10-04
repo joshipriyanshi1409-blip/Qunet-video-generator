@@ -133,6 +133,30 @@ and no worker consuming the queue, so "Stop following" stops the browser
 following the job and says, beside the button, that the worker keeps going. It
 does not pretend to cancel anything.
 
+## Demo deployment
+
+The showcase deployments (Vercel, GitHub Pages) build this app alone: there is no
+API and no worker behind them. `src/lib/demoBackend.ts` answers for that backend
+so the studio is navigable, and it has one rule - **never claim something exists
+that the host cannot actually serve.**
+
+- `POST /api/v1/render` and `GET /api/v1/jobs/:jobId` are answered from
+  `localStorage`, and a started render is *simulated on a clock*: it walks the
+  real pipeline stages over 15 seconds and finishes with an MP4 asset. A reload
+  halfway through picks the job up where it should be, because the timeline is
+  derived from `data.demoStartedAt` rather than from a timer.
+- The MP4 it reports is `public/demo/creatordna-demo.mp4`, a 46-second 9:16 cut
+  the app ships with, referenced through `src/lib/demoAssets.ts` so it resolves
+  under a subpath (`/Qunet-video-generator/`) as well as at the root. Pointing the
+  asset at the API's mount (`/api/v1/render-assets/...`) instead is what produced
+  a finished job whose video element could never load.
+- Regenerate the asset with `apps/web/scripts/generate-demo-video.py` (needs
+  ImageMagick and an ffmpeg with libx264); the poster frame is one frame of it.
+
+Any deployment with a real API never reaches this code: `request()` only falls
+back when the fetch fails or the response is not ok, and it is disabled entirely
+in test mode.
+
 ## Tests
 
 ```bash

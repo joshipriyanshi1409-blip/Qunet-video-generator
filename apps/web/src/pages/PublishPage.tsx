@@ -7,6 +7,7 @@ import { useLibrary } from '../hooks/useLibrary';
 import { downloadBlob, downloadStem, fetchAsBlob } from '../lib/download';
 import { getShareAdapter } from '../lib/qoneqt';
 import { THUMBNAILS } from '../lib/studioFixtures';
+import { demoVideoUrl } from '../lib/demoAssets';
 
 /**
  * Screen 9: Publish to Qoneqt
@@ -35,7 +36,7 @@ export function PublishPage() {
         title: displayTitle,
         caption: savedItem?.caption ?? 'POV: You finally understand Binary Search after 3 days 😅',
         hashtags,
-        mp4Url: savedItem?.mp4Url ?? '/api/v1/render-assets/demo.mp4',
+        mp4Url: savedItem?.mp4Url ?? demoVideoUrl(),
       });
       if (result.ok) {
         setPublishedPostId(result.postId);
@@ -64,7 +65,9 @@ export function PublishPage() {
   }
 
   async function handleDownload(): Promise<void> {
-    const blob = await fetchAsBlob('/api/v1/render-assets/demo.mp4');
+    // The demo render the app ships with, not the API's asset mount: there is
+    // no API on the showcase deployment to serve the latter.
+    const blob = await fetchAsBlob(demoVideoUrl());
     if (blob !== null) {
       downloadBlob(blob, `${downloadStem(jobId, displayTitle)}.mp4`);
     }
